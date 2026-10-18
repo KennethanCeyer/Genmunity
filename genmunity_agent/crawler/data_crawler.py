@@ -89,7 +89,7 @@ class DataCrawler:
                 "author": "한성민 (AI GDE)",
                 "timestamp": "2026-10-15 14:22 KST",
                 "text": (
-                    "올해 DevFest 핸즈온 트랙에서 Google ADK(Agent Development Kit)와 Gemini 2.5 기반 "
+                    "올해 DevFest 핸즈온 트랙에서 Google ADK(Agent Development Kit)와 Gemini 4.0 Argon 기반 "
                     "에이전트 워크숍 세션 진행 가능합니다! 연락은 sniper45han@gmail.com 으로 부탁드립니다."
                 ),
             },

@@ -15,7 +15,13 @@ elif os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
 
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "FALSE")
 
-GEMINI_MODEL = os.environ.get("GENMUNITY_MODEL", "gemini-2.5-flash")
+GEMINI_PRIMARY_MODEL = os.environ.get("GENMUNITY_MODEL", "gemini-4-argon")
+GEMINI_SECONDARY_MODEL = os.environ.get("GENMUNITY_SECONDARY_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL = GEMINI_PRIMARY_MODEL
+GEMINI_MODEL_CANDIDATES: List[str] = [GEMINI_PRIMARY_MODEL]
+if GEMINI_SECONDARY_MODEL and GEMINI_SECONDARY_MODEL not in GEMINI_MODEL_CANDIDATES:
+    GEMINI_MODEL_CANDIDATES.append(GEMINI_SECONDARY_MODEL)
+
 GENMUNITY_BASE_URL = os.environ.get("GENMUNITY_BASE_URL", "http://localhost:8080")
 
 # GDG Domestic Organizers & GDE Shared Google Sheet
@@ -35,7 +41,7 @@ HARDCODED_SPEAKERS: List[Dict[str, Any]] = [
         "role": "AI GDE",
         "badge": "Google Developer Expert in AI / ML",
         "track": "AI / Agentic Workflow Hands-on",
-        "proposed_topic": "Google ADK와 Gemini 2.5를 활용한 멀티 에이전트 커뮤니티 자동화 핸즈온",
+        "proposed_topic": "Google ADK와 Gemini 4.0 Argon을 활용한 멀티 에이전트 커뮤니티 자동화 핸즈온",
         "session_time": "13:30 - 15:00 (90분 핸즈온)",
         "source": "Advocu & GDG Korea GDE Directory",
         "bio": "Google AI/ML GDE. 생성형 AI, 멀티 에이전트 아키텍처(ADK, A2A), Vertex AI 실전 워크숍 전문 연사.",

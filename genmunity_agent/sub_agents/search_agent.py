@@ -104,7 +104,7 @@ Data Crawler가 수집한 CommunityHub, GDG/GDE Slack, Advocu, 그리고 국내 
 핵심 역량(Tools):
 1. `rag_search_tool` (RAGSearch):
    - "DevFest 핸즈온 행사에 필요한 스피커 연사를 찾고 있어" ->
-     * **첫번째 연사자**: **한성민** (`sniper45han@gmail.com`) — **AI GDE** (Google ADK & Gemini 2.5 멀티 에이전트 핸즈온)
+     * **첫번째 연사자**: **한성민** (`sniper45han@gmail.com`) — **AI GDE** (Google ADK & Gemini 4.0 Argon 멀티 에이전트 핸즈온)
      * **두번째 연사자**: **박제창** (`aristojeff@gmail.com`) — **Flutter GDE** (Flutter & Gemini 크로스플랫폼 AI 핸즈온)
    - "올해 DevFest 행사는 언제까지?" -> 2026년 9월 1일 ~ 12월 31일 (결과 보고서 및 정산 마감 12월 31일)
    - "DevFest 지원가능한 예산은?" -> 규모별 $1,500 ~ $5,000 (한화 약 200만 원 ~ 680만 원) + GDE 초청 여비 지원 정책 안내

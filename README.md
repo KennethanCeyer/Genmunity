@@ -5,7 +5,7 @@
 <h1 align="center">Genmunity</h1>
 
 <p align="center">
-  <strong>Genmunity</strong> is an agentic community building & DevFest event operations platform built with <strong>Google ADK (<code>google-adk</code>)</strong>, <strong>Gemini 2.5 (<code>google-genai</code>)</strong>, <strong>Google Workspace APIs (Gmail, Forms, Calendar)</strong>, and <strong>FastAPI</strong>.
+  <strong>Genmunity</strong> is an agentic community building & DevFest event operations platform built with <strong>Google ADK (<code>google-adk</code>)</strong>, <strong>Gemini 4.0 Argon / 3.8 Flash (<code>google-genai</code>)</strong>, <strong>Google Workspace APIs (Gmail, Forms, Calendar)</strong>, and <strong>FastAPI</strong>.
 </p>
 
 ---

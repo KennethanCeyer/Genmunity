@@ -21,6 +21,7 @@ from googleapiclient.discovery import build
 from genmunity_agent.config import (
     BASE_DIR,
     GEMINI_MODEL,
+    GEMINI_MODEL_CANDIDATES,
     GENMUNITY_BASE_URL,
     HARDCODED_SPEAKERS,
     DEVFEST_EVENT_INFO,
@@ -47,6 +48,28 @@ class GoogleWorkspaceService:
         if api_key:
             self._genai_client = genai.Client(api_key=api_key)
         return self._genai_client
+
+    def generate_content_with_fallback(
+        self, contents: str, config: types.GenerateContentConfig
+    ):
+        """Try primary model (gemini-4-argon) first, falling back to secondary (gemini-3.8-flash)."""
+        client = self.get_genai_client()
+        if not client:
+            raise RuntimeError("No Gemini API client configured")
+        last_exc: Optional[Exception] = None
+        for model_name in GEMINI_MODEL_CANDIDATES:
+            try:
+                return client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as exc:
+                logger.warning(f"Gemini model {model_name} failed, trying fallback if available: {exc}")
+                last_exc = exc
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("No Gemini model candidates configured")
 
     def load_oauth_credentials(self) -> Optional[Credentials]:
         """Load Google OAuth credentials from environment, local token.json, or ~/automation/token.json."""
@@ -166,8 +189,7 @@ class GoogleWorkspaceService:
 제목에는 반드시 '{DEVFEST_EVENT_INFO['event_tag']}' 와 '{name}' 님의 성함, '{role}' 가 포함되어야 합니다.
 """
         try:
-            resp = client.models.generate_content(
-                model=GEMINI_MODEL,
+            resp = self.generate_content_with_fallback(
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -526,8 +548,7 @@ JSON 스키마:
   ]
 }}"""
             try:
-                resp = client.models.generate_content(
-                    model=GEMINI_MODEL,
+                resp = self.generate_content_with_fallback(
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",

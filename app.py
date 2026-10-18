@@ -710,12 +710,12 @@ def dashboard():
       <img src="/logo.png" alt="Genmunity Logo" class="brand-logo" />
       <div>
         <h1>Genmunity <span style="font-weight:500;color:#93c5fd;">CommunityHub & Event Ops Multi-Agent</span></h1>
-        <span>Builderthon Live Demo • Powered by Google ADK, Gemini 2.5, Gmail, Google Forms & Calendar</span>
+        <span>Builderthon Live Demo • Powered by Google ADK, Gemini 4.0 Argon (3.8 Flash fallback), Gmail, Google Forms & Calendar</span>
       </div>
     </div>
     <div class="pill-bar">
       <span class="pill">Google ADK v2</span>
-      <span class="pill">Gemini 2.5 Flash</span>
+      <span class="pill">Gemini 4.0 Argon / 3.8 Flash</span>
       <span class="pill">Gmail API (Real)</span>
       <span class="pill">Form & Calendar Invite</span>
     </div>
@@ -783,7 +783,7 @@ def dashboard():
             <span class="chip" style="background:#1d4ed8;color:#fff;">첫번째 연사자 • AI GDE</span>
             <h4>한성민 (Sungmin Han)</h4>
             <p><b>sniper45han@gmail.com</b></p>
-            <p>Google ADK와 Gemini 2.5 멀티 에이전트 핸즈온 (13:30 - 15:00)</p>
+            <p>Google ADK와 Gemini 4.0 Argon 멀티 에이전트 핸즈온 (13:30 - 15:00)</p>
           </div>
           <div class="speaker-card">
             <span class="chip" style="background:#047857;color:#fff;">두번째 연사자 • Flutter GDE</span>
