@@ -518,21 +518,57 @@ async def handle_a2a_jsonrpc(payload: Dict[str, Any], base_url: str = GENMUNITY_
     session_id = params.get("sessionId") or params.get("contextId") or message_obj.get("contextId")
     chat_res = await run_agent_chat(prompt=prompt_text.strip(), session_id=session_id)
 
+    from community_hub_agent.rag.retriever import get_rag_retriever
+    retriever = get_rag_retriever()
+    adaptive_bundle = retriever.retrieve_adaptive(query=prompt_text.strip(), top_k=4)
+    routing = adaptive_bundle.get("routing", {})
+    rag_results = (adaptive_bundle.get("vector_rag") or {}).get("results", [])
+    if not rag_results:
+        rag_results = retriever.retrieve(query=prompt_text.strip(), top_k=2).get("results", [])
+    graph_triples = ((adaptive_bundle.get("graph_rag") or {}).get("subgraph_triples") or [])[:10]
+
     task_id = params.get("id") or f"task-{uuid.uuid4().hex[:8]}"
     context_id = chat_res["session_id"]
+    msg_id = f"msg-{uuid.uuid4().hex[:8]}"
 
     return {
         "jsonrpc": "2.0",
         "id": req_id,
         "result": {
             "id": task_id,
+            "taskId": task_id,
+            "messageId": msg_id,
             "contextId": context_id,
             "kind": "task",
+            "role": "agent",
+            "parts": [
+                {"kind": "text", "text": chat_res["reply"]},
+                {
+                    "kind": "data",
+                    "data": {
+                        "source_agent": "gdg_gde_community_hub_agent",
+                        "model": chat_res.get("model"),
+                        "active_agents": chat_res.get("active_agents", []),
+                        "routing": routing,
+                        "citations": [
+                            {
+                                "chunk_id": r["chunk_id"],
+                                "title": r["title"],
+                                "category": r["category"],
+                                "source_url": r["source_url"],
+                                "score": r["score"],
+                            }
+                            for r in rag_results
+                        ],
+                        "graph_triples": graph_triples,
+                    },
+                },
+            ],
             "status": {
                 "state": "completed",
                 "message": {
                     "role": "agent",
-                    "messageId": f"msg-{uuid.uuid4().hex[:8]}",
+                    "messageId": msg_id,
                     "contextId": context_id,
                     "parts": [{"kind": "text", "text": chat_res["reply"]}],
                 },
@@ -548,6 +584,7 @@ async def handle_a2a_jsonrpc(payload: Dict[str, Any], base_url: str = GENMUNITY_
                                 "model": chat_res.get("model"),
                                 "active_agents": chat_res.get("active_agents", []),
                                 "tool_calls": chat_res.get("tool_calls", []),
+                                "routing": routing,
                             },
                         }
                     ],

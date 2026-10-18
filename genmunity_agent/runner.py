@@ -213,7 +213,64 @@ async def run_agent_chat(
             last_exc = exc
 
     if last_exc is not None:
-        raise last_exc
+        logger.warning(f"All Gemini models failed ({last_exc}); using deterministic SearchAgent + Adaptive RAG/GraphRAG fallback.")
+        from genmunity_agent.sub_agents.search_agent import (
+            rag_search_tool,
+            hybrid_community_hub_rag_tool,
+        )
+        from community_hub_agent.a2a_server import run_agent_or_rag_fallback
+
+        t0 = time.perf_counter()
+        rag_res = await asyncio.to_thread(rag_search_tool, prompt)
+        t1 = time.perf_counter()
+        hub_res = await asyncio.to_thread(hybrid_community_hub_rag_tool, prompt)
+        t2 = time.perf_counter()
+        fallback_bundle = await run_agent_or_rag_fallback(prompt)
+
+        speakers = rag_res.get("recommended_speakers") or []
+        speaker_lines = [
+            f"- **{s.get('priority', idx)}순위 {s.get('name')}** ({s.get('role')}, `{s.get('email')}`) — 트랙: {s.get('track')}"
+            for idx, s in enumerate(speakers, start=1)
+        ]
+        reply_parts = [fallback_bundle.get("text", "")]
+        if any(k in prompt.lower() for k in ("연사", "스피커", "섭외", "devfest", "핸즈온", "speaker", "한성민", "박제창")):
+            reply_parts.append(
+                "#### [Genmunity SearchAgent 매칭 연사 및 행사 정보]\n"
+                + "\n".join(speaker_lines)
+                + f"\n- **예산 가이드**: {rag_res.get('budget_guidelines', '')}"
+            )
+        state = load_runtime_state()
+        return {
+            "session_id": sid,
+            "model": f"{used_model} (RAG+GraphRAG Fallback)",
+            "prompt": prompt,
+            "reply": _strip_emojis("\n\n".join(p for p in reply_parts if p)),
+            "active_agents": ["RootAgent", "SearchAgent"],
+            "tool_calls": [
+                {
+                    "step_id": "step-1-rag_search_tool",
+                    "agent": "SearchAgent",
+                    "tool_name": "rag_search_tool",
+                    "label": TOOL_LABELS_KO.get("rag_search_tool", "rag_search_tool"),
+                    "args": {"query": prompt},
+                    "status": "completed",
+                    "elapsed_ms": int((t1 - t0) * 1000),
+                    "summary": _summarize_tool_response("rag_search_tool", rag_res),
+                },
+                {
+                    "step_id": "step-2-hybrid_community_hub_rag_tool",
+                    "agent": "SearchAgent",
+                    "tool_name": "hybrid_community_hub_rag_tool",
+                    "label": "Community Hub Adaptive Vector RAG + GraphRAG 통합 검색",
+                    "args": {"query": prompt, "strategy": "auto"},
+                    "status": "completed",
+                    "elapsed_ms": int((t2 - t1) * 1000),
+                    "summary": f"전략: {hub_res.get('selected_strategy', 'auto')} (Vector RAG + GraphRAG)",
+                },
+            ],
+            "images": [],
+            "latest_trace": state.get("agent_trace", [])[-8:],
+        }
 
     raw_reply = "\n\n".join(final_texts) if final_texts else "요청하신 작업을 처리했습니다."
     reply = _strip_emojis(raw_reply)
