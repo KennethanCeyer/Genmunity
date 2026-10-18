@@ -11,7 +11,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Genmunity</title>
-  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -1414,7 +1415,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                   setSelectedEventId(null);
                 }}
               >
-                <img src="/logo.png" alt="Genmunity" className="gnb-logo" />
+                <img src="/logo.png" alt="Genmunity" className="gnb-logo object-contain" />
                 <span className="gnb-title">Genmunity</span>
               </button>
 
