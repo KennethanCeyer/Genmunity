@@ -19,8 +19,10 @@ from genmunity_agent.services.google_workspace import get_workspace_service
 
 logger = logging.getLogger("genmunity.mail_trigger")
 
-DEFAULT_ADMIN_EMAIL = "devstar5011@gcplab.me"
-DEFAULT_GCP_PROJECT = "automation-511905"
+DEFAULT_ADMIN_EMAIL = os.environ.get(
+    "MAIL_ADMIN_EMAIL", os.environ.get("GCP_USERNAME", "devstar5011@gcplab.me")
+)
+DEFAULT_GCP_PROJECT = os.environ.get("GCP_PROJECT_ID", "kr-devsummit26icn-501")
 DEFAULT_PUBSUB_TOPIC = f"projects/{DEFAULT_GCP_PROJECT}/topics/gmail-push-topic"
 
 ADMIN_REGISTRY_PATH: Path = BASE_DIR / "data" / "mail_admin_registry.json"

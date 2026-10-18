@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-PROJECT_ID="${GCP_PROJECT_ID:-automation-511905}"
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+PROJECT_ID="${GCP_PROJECT_ID:-kr-devsummit26icn-501}"
 SERVICE_NAME="genmunity"
 REGION="asia-northeast3"
 
