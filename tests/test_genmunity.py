@@ -52,6 +52,14 @@ def test_ops_agent_speakers_and_onboarding_form():
 
     form_res = create_speaker_onboarding_form_tool("DevFest 2026 발표자 사전 정보 폼")
     assert "form_id" in form_res
+    assert form_res["form_provider"] == "google_forms_api_v1"
+    assert form_res["google_form_url"].startswith("https://docs.google.com/forms/d/")
+    assert form_res["primary_form_url"].startswith("https://docs.google.com/forms/d/")
+    assert "speaker-onboarding" not in form_res["primary_form_url"]
+    for sp_link in form_res["speaker_links"]:
+        assert sp_link["personalized_form_url"].startswith("https://docs.google.com/forms/d/")
+        assert "speaker-onboarding" not in sp_link["personalized_form_url"]
+
     field_labels = [f["label"] for f in form_res["fields"]]
     assert "발표자 성함" in field_labels
     assert "이메일" in field_labels
@@ -59,39 +67,16 @@ def test_ops_agent_speakers_and_onboarding_form():
     assert any("티셔츠 사이즈" in lbl for lbl in field_labels)
     assert any("차량 번호" in lbl for lbl in field_labels)
 
-    # Test rendering and submitting the hosted Speaker Onboarding Form
-    form_id = form_res["form_id"]
-    get_resp = client.get(
-        f"/forms/speaker-onboarding/{form_id}?name=한성민&email=sniper45han@gmail.com"
-    )
-    assert get_resp.status_code == 200
-    assert "발표자 성함" in get_resp.text
-    assert "티셔츠 사이즈" in get_resp.text
-    assert "차량 번호" in get_resp.text
-
-    post_resp = client.post(
-        f"/forms/speaker-onboarding/{form_id}/submit",
-        data={
-            "speaker_name": "한성민",
-            "email": "sniper45han@gmail.com",
-            "phone": "010-1111-2222",
-            "tshirt_size": "XL (105)",
-            "vehicle_number": "123가 4568",
-            "session_title": "Google ADK 멀티 에이전트 핸즈온",
-        },
-    )
-    assert post_resp.status_code == 200
-    assert "성공적으로 등록되었습니다" in post_resp.text
-
 
 def test_ics_calendar_generation():
     ws = get_workspace_service()
     ics = ws.build_ics_calendar_invite(
-        HARDCODED_SPEAKERS[0], "http://localhost:8080/forms/speaker-onboarding/test"
+        HARDCODED_SPEAKERS[0], DEVFEST_EVENT_INFO["default_google_form_url"]
     )
     assert "BEGIN:VCALENDAR" in ics
     assert "METHOD:REQUEST" in ics
     assert "sniper45han@gmail.com" in ics
+    assert "https://docs.google.com/forms/d/" in ics
     assert DEVFEST_EVENT_INFO["venue"] in ics
 
 
@@ -316,9 +301,15 @@ def test_speaker_invitation_and_sponsor_sponsorship_email_scenarios():
     assert invite_resp.status_code == 200
     inv_data = invite_resp.json()
     assert inv_data["status"] == "invited"
+    assert inv_data["form_provider"] == "google_forms_api_v1"
+    assert inv_data["google_form_url"].startswith("https://docs.google.com/forms/d/")
+    assert "speaker-onboarding" not in inv_data["primary_form_url"]
     assert len(inv_data["invites_sent"]) == 2
     for inv in inv_data["invites_sent"]:
         assert inv["calendar_ics_attached"] is True
+        assert inv["form_url"].startswith("https://docs.google.com/forms/d/")
+        assert "speaker-onboarding" not in inv["form_url"]
+        assert "speaker-onboarding" not in inv["body"]
         assert inv["delivery"]["status"] in ("sent", "simulated_no_credentials")
 
     # Scenario 3: Sponsor Sponsorship Proposal Email Dispatch (Tier 2 $3,000 & Tier 3 $5,000)
@@ -339,3 +330,157 @@ def test_speaker_invitation_and_sponsor_sponsorship_email_scenarios():
         assert r["email_type"] == "sponsor_outreach"
         assert "[DevFest 2026]" in r["subject"]
         assert r["delivery"]["status"] in ("sent", "simulated_no_credentials")
+
+
+def test_mcp_catalog_and_server_completeness_and_rsvp_validation():
+    import asyncio
+    from genmunity_agent.mcp_a2a import (
+        MCP_TOOLS_CATALOG,
+        build_mcp_server,
+        execute_mcp_tool_call,
+    )
+    from genmunity_agent.sub_agents.search_agent import crawl_community_hub_tool
+
+    expected_tools = {
+        "GenmunityRootAgent",
+        "rag_search_tool",
+        "crawl_community_hub_tool",
+        "search_event_knowledge_base_tool",
+        "slack_search_tool",
+        "summarize_community_data_tool",
+        "get_target_speakers_tool",
+        "generate_and_send_speaker_emails_tool",
+        "generate_and_send_sponsor_emails_tool",
+        "collect_and_cluster_event_emails_tool",
+        "create_speaker_onboarding_form_tool",
+        "fetch_google_form_responses_tool",
+        "record_speaker_form_response_tool",
+        "invite_speakers_with_form_and_calendar_tool",
+        "run_ops_full_workflow_tool",
+        "check_email_receive_trigger_tool",
+        "handle_inbound_email_inquiry_tool",
+        "manage_event_rsvp_tool",
+        "create_or_modify_event_tool",
+        "generate_event_image_tool",
+        "add_event_knowledge_tool",
+        "analyze_event_photo_tool",
+        "get_event_readiness_summary_tool",
+    }
+
+    catalog_names = {t["name"] for t in MCP_TOOLS_CATALOG}
+    assert expected_tools.issubset(catalog_names)
+
+    srv = build_mcp_server()
+    stdio_tools = set(srv._tool_manager._tools.keys())
+    assert expected_tools.issubset(stdio_tools)
+
+    # Verify CommunityHub crawler normalized keys
+    hub_res = crawl_community_hub_tool(force_refresh=False)
+    assert hub_res.get("hub_url") is not None
+    assert hub_res.get("source_url") is not None
+    assert isinstance(hub_res.get("cookie_count"), int)
+    assert isinstance(hub_res.get("devfest_2026_highlights"), dict)
+    assert hub_res["devfest_2026_highlights"].get("theme")
+
+    # Verify newly exposed MCP tools via execute_mcp_tool_call
+    readiness = asyncio.run(execute_mcp_tool_call("get_event_readiness_summary_tool", {}))
+    assert "readiness_pct" in readiness
+    assert len(readiness.get("speaker_cards", [])) == 2
+
+    form_res = asyncio.run(execute_mcp_tool_call("fetch_google_form_responses_tool", {}))
+    assert "form_id" in form_res
+
+    sync_res = asyncio.run(
+        execute_mcp_tool_call(
+            "record_speaker_form_response_tool",
+            {
+                "speaker_name": "박제창",
+                "email": "aristojeff@gmail.com",
+                "phone": "010-2222-3333",
+                "tshirt_size": "L (100)",
+                "vehicle_number": "456나 7890",
+                "session_title": "Flutter & Gemini 크로스플랫폼 AI 앱 핸즈온",
+            },
+        )
+    )
+    assert sync_res["status"] == "synced"
+
+    # Verify RSVP cancel on non-existent attendee does NOT create a confirmed RSVP
+    cancel_missing = asyncio.run(
+        execute_mcp_tool_call(
+            "manage_event_rsvp_tool",
+            {
+                "attendee_name": "존재하지않는참가자999",
+                "attendee_email": "nonexistent999@gdg.kr",
+                "event_id": "devfest-2026-seoul",
+                "action": "cancel",
+            },
+        )
+    )
+    assert cancel_missing["status"] == "not_found"
+    assert cancel_missing["action"] == "not_found"
+
+
+def test_live_google_forms_prefill_and_response_sync():
+    import urllib.request
+
+    ws = get_workspace_service()
+    default_form_id = DEVFEST_EVENT_INFO["default_google_form_id"]
+    default_form_url = DEVFEST_EVENT_INFO["default_google_form_url"]
+
+    assert default_form_url.startswith("https://docs.google.com/forms/d/e/")
+    assert "speaker-onboarding" not in default_form_url
+
+    # 1. Verify live Google Form responder URL returns HTTP 200 without login redirect
+    req = urllib.request.urlopen(default_form_url, timeout=15)
+    html = req.read().decode("utf-8")
+    assert req.status == 200
+    assert "발표자 성함" in html
+    assert "티셔츠 사이즈" in html
+    assert "차량 번호" in html
+
+    # 2. Verify Google Forms API v1 response retrieval on the provisioned Google Form
+    fetched = ws.fetch_google_form_responses(default_form_id)
+    assert fetched["form_id"] == default_form_id
+    assert fetched["total_responses"] >= 1
+    assert "sniper45han@gmail.com" in fetched["speaker_onboarding"]
+    assert "aristojeff@gmail.com" in fetched["speaker_onboarding"]
+
+
+def test_streaming_chat_image_gen_and_mcp_batch():
+    # 1. Image Generation SSE stream (/api/chat/stream with image_mode=True)
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={
+            "prompt": "DevFest 2026 Seoul minimalist banner",
+            "image_mode": True,
+            "image_style": "Modern Minimal Tech",
+        },
+    ) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text())
+        assert "tool_start" in body
+        assert "image_generated" in body
+        assert "text_delta" in body
+        assert '"type": "done"' in body
+
+    # 2. Multi-MCP Batch SSE stream (/api/mcp/batch-stream)
+    with client.stream(
+        "POST",
+        "/api/mcp/batch-stream",
+        json={
+            "tools": [
+                {"name": "get_target_speakers_tool", "arguments": {}},
+                {"name": "rag_search_tool", "arguments": {"query": "DevFest 예산"}},
+            ]
+        },
+    ) as batch_resp:
+        assert batch_resp.status_code == 200
+        batch_body = "".join(batch_resp.iter_text())
+        assert "get_target_speakers_tool" in batch_body
+        assert "rag_search_tool" in batch_body
+        assert '"type": "done"' in batch_body
+
+
+

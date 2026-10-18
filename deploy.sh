@@ -15,6 +15,11 @@ PUBSUB_TOPIC="gmail-push-topic"
 PUBSUB_SUB="gmail-push-cloudrun-sub"
 
 echo "=== [1/3] Deploying Genmunity (Google ADK + OpsAgent) to Cloud Run [$SERVICE_NAME / $PROJECT_ID] ==="
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)" 2>/dev/null || echo "858263435030")
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor" >/dev/null 2>&1 || true
+
 gcloud run deploy "$SERVICE_NAME" \
   --project "$PROJECT_ID" \
   --source . \

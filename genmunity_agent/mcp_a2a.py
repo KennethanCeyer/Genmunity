@@ -23,6 +23,7 @@ from genmunity_agent.agent import root_agent
 from genmunity_agent.sub_agents.search_agent import (
     search_agent,
     rag_search_tool,
+    crawl_community_hub_tool,
     search_event_knowledge_base_tool,
     slack_search_tool,
     summarize_community_data_tool,
@@ -34,6 +35,8 @@ from genmunity_agent.sub_agents.ops_agent import (
     generate_and_send_sponsor_emails_tool,
     collect_and_cluster_event_emails_tool,
     create_speaker_onboarding_form_tool,
+    fetch_google_form_responses_tool,
+    record_speaker_form_response_tool,
     invite_speakers_with_form_and_calendar_tool,
     run_ops_full_workflow_tool,
     check_email_receive_trigger_tool,
@@ -42,6 +45,8 @@ from genmunity_agent.sub_agents.ops_agent import (
     create_or_modify_event_tool,
     generate_event_image_tool,
     add_event_knowledge_tool,
+    analyze_event_photo_tool,
+    get_event_readiness_summary_tool,
 )
 from genmunity_agent.runner import run_agent_chat
 from genmunity_agent.config import GENMUNITY_BASE_URL
@@ -66,19 +71,27 @@ def build_mcp_server():
     )
     # Register granular tools on the FastMCP server so external MCP clients can call either RootAgent or specific tools
     mcp_srv.add_tool(rag_search_tool, name="rag_search_tool", description="Search CommunityHub, Advocu, GDG Sheet, and Event Knowledge Base.")
+    mcp_srv.add_tool(crawl_community_hub_tool, name="crawl_community_hub_tool", description="Scrape Google CommunityHub with authenticated session cookies.")
     mcp_srv.add_tool(search_event_knowledge_base_tool, name="search_event_knowledge_base_tool", description="Search Event Knowledge Base and Gemini Vision photo attendee stats.")
     mcp_srv.add_tool(slack_search_tool, name="slack_search_tool", description="Search GDG/GDE Slack threads.")
+    mcp_srv.add_tool(summarize_community_data_tool, name="summarize_community_data_tool", description="Summarize crawled CommunityHub, Advocu, GDG Sheet, and Event Knowledge Base data.")
     mcp_srv.add_tool(get_target_speakers_tool, name="get_target_speakers_tool", description="Get matched DevFest speakers (한성민 AI GDE, 박제창 Flutter GDE).")
     mcp_srv.add_tool(generate_and_send_speaker_emails_tool, name="generate_and_send_speaker_emails_tool", description="Generate and send speaker invitation emails via Gmail.")
     mcp_srv.add_tool(generate_and_send_sponsor_emails_tool, name="generate_and_send_sponsor_emails_tool", description="Generate and send sponsor sponsorship proposal emails via Gmail.")
     mcp_srv.add_tool(collect_and_cluster_event_emails_tool, name="collect_and_cluster_event_emails_tool", description="Collect and cluster event-related Gmail threads.")
     mcp_srv.add_tool(create_speaker_onboarding_form_tool, name="create_speaker_onboarding_form_tool", description="Create Speaker Onboarding Form (name, email, phone, t-shirt, vehicle number).")
+    mcp_srv.add_tool(fetch_google_form_responses_tool, name="fetch_google_form_responses_tool", description="Retrieve submitted speaker onboarding responses from Google Forms.")
+    mcp_srv.add_tool(record_speaker_form_response_tool, name="record_speaker_form_response_tool", description="Record and synchronize a speaker onboarding form submission into main event state.")
     mcp_srv.add_tool(invite_speakers_with_form_and_calendar_tool, name="invite_speakers_with_form_and_calendar_tool", description="Send Onboarding Form link and .ics Calendar invite to speakers.")
+    mcp_srv.add_tool(run_ops_full_workflow_tool, name="run_ops_full_workflow_tool", description="Execute the entire 5-step OpsAgent speaker outreach & onboarding pipeline sequentially.")
+    mcp_srv.add_tool(check_email_receive_trigger_tool, name="check_email_receive_trigger_tool", description="Check registered Mail Admin INBOX for inbound emails and trigger KB auto-reply or speaker workflow.")
     mcp_srv.add_tool(handle_inbound_email_inquiry_tool, name="handle_inbound_email_inquiry_tool", description="Auto-reply to inbound event inquiries from Event Knowledge Base or delegate out-of-KB inquiries to sniper45han@gmail.com and aristojeff@gmail.com.")
     mcp_srv.add_tool(manage_event_rsvp_tool, name="manage_event_rsvp_tool", description="Create, modify, or cancel an event RSVP.")
     mcp_srv.add_tool(create_or_modify_event_tool, name="create_or_modify_event_tool", description="Create or modify a GDG/DevFest event.")
     mcp_srv.add_tool(generate_event_image_tool, name="generate_event_image_tool", description="Generate an event banner or RSVP illustration using Gemini Image Generation.")
     mcp_srv.add_tool(add_event_knowledge_tool, name="add_event_knowledge_tool", description="Add an entry to the Event Knowledge Base.")
+    mcp_srv.add_tool(analyze_event_photo_tool, name="analyze_event_photo_tool", description="Analyze an event photo with Gemini Vision to count attendees and update Event Knowledge Base.")
+    mcp_srv.add_tool(get_event_readiness_summary_tool, name="get_event_readiness_summary_tool", description="Retrieve comprehensive operational readiness summary for the main DevFest 2026 event.")
     return mcp_srv
 
 
@@ -145,11 +158,42 @@ MCP_TOOLS_CATALOG: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "crawl_community_hub_tool",
+        "description": "[SearchAgent] Scrape https://developers.google.com/community/community-hub using authenticated session cookies.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"force_refresh": {"type": "boolean", "default": False}},
+        },
+    },
+    {
         "name": "search_event_knowledge_base_tool",
         "description": "[SearchAgent] Search event knowledge base entries, RSVP counts, and Gemini Vision photo attendee tracking stats.",
         "inputSchema": {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "Keyword or event ID"}},
+        },
+    },
+    {
+        "name": "slack_search_tool",
+        "description": "[SearchAgent] Search GDG/GDE Slack channels (#devfest-2026-organizers, #gde-korea-speakers, #devfest-2026-ops).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Slack search query"}},
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "summarize_community_data_tool",
+        "description": "[SearchAgent] Summarize crawled CommunityHub, Advocu, GDG Korea Sheet, Event Knowledge Base, and Slack data.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "focus": {
+                    "type": "string",
+                    "enum": ["speakers", "schedule", "budget", "events", "all"],
+                    "default": "all",
+                }
+            },
         },
     },
     {
@@ -193,6 +237,29 @@ MCP_TOOLS_CATALOG: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {"form_title": {"type": "string"}},
+        },
+    },
+    {
+        "name": "fetch_google_form_responses_tool",
+        "description": "[OpsAgent] Retrieve submitted speaker onboarding responses from Google Forms (forms.responses.list).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"form_id": {"type": "string"}},
+        },
+    },
+    {
+        "name": "record_speaker_form_response_tool",
+        "description": "[OpsAgent] Record and synchronize a speaker onboarding form submission (name, email, phone, t-shirt size, vehicle number, session title) into main event state.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "speaker_name": {"type": "string", "default": "한성민"},
+                "email": {"type": "string", "default": "sniper45han@gmail.com"},
+                "phone": {"type": "string", "default": "010-9123-4567"},
+                "tshirt_size": {"type": "string", "default": "XL (105)"},
+                "vehicle_number": {"type": "string", "default": "123가 4567"},
+                "session_title": {"type": "string", "default": ""},
+            },
         },
     },
     {
@@ -253,6 +320,54 @@ MCP_TOOLS_CATALOG: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "generate_event_image_tool",
+        "description": "[OpsAgent] Generate an event key visual banner or RSVP illustration using Gemini Image Generation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string", "description": "Image generation prompt"},
+                "event_id": {"type": "string", "default": "devfest-2026-seoul"},
+                "style": {"type": "string", "default": "Modern Minimal Tech"},
+            },
+        },
+    },
+    {
+        "name": "analyze_event_photo_tool",
+        "description": "[OpsAgent] Analyze an event venue photo with Gemini Vision to count attendees and update the Event Knowledge Base.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "default": "devfest-2026-seoul"},
+                "filename": {"type": "string", "default": "event_photo.jpg"},
+                "caption": {"type": "string", "default": "DevFest 2026 핸즈온 세션 현장 사진"},
+                "image_path": {"type": "string", "default": ""},
+            },
+        },
+    },
+    {
+        "name": "run_ops_full_workflow_tool",
+        "description": "[OpsAgent] Execute the entire 5-step OpsAgent speaker outreach, clustering, onboarding Form & Calendar invite workflow sequentially.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "custom_context": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "get_event_readiness_summary_tool",
+        "description": "[OpsAgent] Retrieve comprehensive operational readiness summary for the main DevFest 2026 event.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "check_email_receive_trigger_tool",
+        "description": "[OpsAgent] Check the registered Mail Administrator INBOX (devstar5011@gcplab.me) for newly received inquiry or speaker emails and trigger auto-reply or speaker workflow.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"force_process_latest": {"type": "boolean", "default": False}},
+        },
+    },
+    {
         "name": "handle_inbound_email_inquiry_tool",
         "description": "[OpsAgent] Evaluate an inbound email inquiry to devstar5011@gcplab.me (Project: kr-devsummit26icn-501). Auto-replies using the Event Knowledge Base or delegates out-of-KB inquiries to sniper45han@gmail.com and aristojeff@gmail.com.",
         "inputSchema": {
@@ -278,6 +393,8 @@ async def execute_mcp_tool_call(tool_name: str, arguments: Dict[str, Any]) -> An
         return await run_agent_chat(prompt=req_text)
     if tool_name == "rag_search_tool":
         return rag_search_tool(query=args.get("query", ""))
+    if tool_name == "crawl_community_hub_tool":
+        return crawl_community_hub_tool(force_refresh=bool(args.get("force_refresh", False)))
     if tool_name == "search_event_knowledge_base_tool":
         return search_event_knowledge_base_tool(query=args.get("query", ""))
     if tool_name == "slack_search_tool":
@@ -300,6 +417,17 @@ async def execute_mcp_tool_call(tool_name: str, arguments: Dict[str, Any]) -> An
         return collect_and_cluster_event_emails_tool(max_results=int(args.get("max_results", 20)))
     if tool_name == "create_speaker_onboarding_form_tool":
         return create_speaker_onboarding_form_tool(form_title=args.get("form_title", ""))
+    if tool_name == "fetch_google_form_responses_tool":
+        return fetch_google_form_responses_tool(form_id=args.get("form_id", ""))
+    if tool_name == "record_speaker_form_response_tool":
+        return record_speaker_form_response_tool(
+            speaker_name=args.get("speaker_name", "한성민"),
+            email=args.get("email", "sniper45han@gmail.com"),
+            phone=args.get("phone", "010-9123-4567"),
+            tshirt_size=args.get("tshirt_size", "XL (105)"),
+            vehicle_number=args.get("vehicle_number", "123가 4567"),
+            session_title=args.get("session_title", ""),
+        )
     if tool_name == "invite_speakers_with_form_and_calendar_tool":
         return invite_speakers_with_form_and_calendar_tool(form_id=args.get("form_id", ""))
     if tool_name == "run_ops_full_workflow_tool":
@@ -335,6 +463,12 @@ async def execute_mcp_tool_call(tool_name: str, arguments: Dict[str, Any]) -> An
             budget=args.get("budget", "$3,000"),
             description=args.get("description", ""),
         )
+    if tool_name == "generate_event_image_tool":
+        return generate_event_image_tool(
+            prompt=args.get("prompt", "DevFest 2026 Seoul modern minimalist banner"),
+            event_id=args.get("event_id", "devfest-2026-seoul"),
+            style=args.get("style", "Modern Minimal Tech"),
+        )
     if tool_name == "add_event_knowledge_tool":
         return add_event_knowledge_tool(
             title=args.get("title", "이벤트 지식 노트"),
@@ -342,6 +476,15 @@ async def execute_mcp_tool_call(tool_name: str, arguments: Dict[str, Any]) -> An
             event_id=args.get("event_id", "devfest-2026-seoul"),
             category=args.get("category", "Event Knowledge"),
         )
+    if tool_name == "analyze_event_photo_tool":
+        return analyze_event_photo_tool(
+            event_id=args.get("event_id", "devfest-2026-seoul"),
+            filename=args.get("filename", "event_photo.jpg"),
+            caption=args.get("caption", "현장 사진"),
+            image_path=args.get("image_path", ""),
+        )
+    if tool_name == "get_event_readiness_summary_tool":
+        return get_event_readiness_summary_tool()
     raise ValueError(f"Unknown MCP tool: {tool_name}")
 
 

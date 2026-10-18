@@ -257,9 +257,25 @@ def _enrich_event_defaults(ev: Dict[str, Any], state: Dict[str, Any]) -> Dict[st
     ev.setdefault("banner_url", ev["generated_images"][0]["url"] if ev["generated_images"] else "")
 
     latest_form = state.get("latest_form") or {}
-    form_id = latest_form.get("form_id") or "devfest-2026-onboarding"
-    primary_form_url = latest_form.get("primary_form_url") or f"/forms/speaker-onboarding/{form_id}"
-    google_form_edit_url = latest_form.get("edit_url") or ""
+    default_gf_url = DEVFEST_EVENT_INFO.get(
+        "default_google_form_url",
+        "https://docs.google.com/forms/d/e/1FAIpQLSeVYvU9nyRQmdhYgLIO2IwFc7PCZCAd-O43Rl-ltWyvhm8tjA/viewform",
+    )
+    primary_form_url = (
+        latest_form.get("google_form_url")
+        or latest_form.get("primary_form_url")
+        or default_gf_url
+    )
+    if not str(primary_form_url).startswith("https://docs.google.com/forms/"):
+        primary_form_url = default_gf_url
+    google_form_edit_url = (
+        latest_form.get("google_form_edit_url")
+        or latest_form.get("edit_url")
+        or DEVFEST_EVENT_INFO.get(
+            "default_google_form_edit_url",
+            "https://docs.google.com/forms/d/1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU/edit",
+        )
+    )
 
     cal_invites = state.get("calendar_invites") or []
     cal_html_link = ""
@@ -289,7 +305,7 @@ def _enrich_event_defaults(ev: Dict[str, Any], state: Dict[str, Any]) -> Dict[st
         "gmail_compose_url": gmail_compose_url,
         "calendar_url": cal_html_link,
         "form_url": primary_form_url,
-        "form_local_url": f"/forms/speaker-onboarding/{form_id}",
+        "form_local_url": primary_form_url,
         "google_form_edit_url": google_form_edit_url,
         "sheet_url": GDG_KOREA_SHEET_URL,
     }
@@ -612,6 +628,7 @@ def manage_event_rsvp(
     role: str = "Developer",
     track: str = "AI / Agentic Workflow Hands-on",
     dietary: str = "일반",
+    note: str = "",
     status: str = "confirmed",
     rsvp_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -670,6 +687,7 @@ def manage_event_rsvp(
                 "role": role,
                 "track": track,
                 "dietary": dietary,
+                "note": note,
                 "status": status or "confirmed",
                 "registered_at": now_iso,
             }
@@ -689,6 +707,8 @@ def manage_event_rsvp(
                 existing["track"] = track
             if dietary:
                 existing["dietary"] = dietary
+            if note:
+                existing["note"] = note
             if status:
                 existing["status"] = status
             elif act == "create" and prev_status == "cancelled":
@@ -709,6 +729,7 @@ def manage_event_rsvp(
             "role": role,
             "track": track,
             "dietary": dietary,
+            "note": note,
             "status": status or "confirmed",
             "registered_at": now_iso,
         }
