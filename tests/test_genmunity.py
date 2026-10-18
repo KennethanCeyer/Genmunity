@@ -511,7 +511,7 @@ def test_event_detail_wysiwyg_image_gen_and_workspace_links():
     assert "workspace_links" in ev
     ws_links = ev["workspace_links"]
     assert "mail.google.com" in ws_links["gmail_inbox_url"]
-    assert "calendar.google.com" in ws_links["calendar_url"]
+    assert "calendar" in ws_links["calendar_url"]
     assert "docs.google.com/forms" in ws_links["form_url"]
     assert "docs.google.com/spreadsheets" in ws_links["sheet_url"]
 

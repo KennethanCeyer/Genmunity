@@ -1422,19 +1422,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <nav className="gnb-nav">
                 <button
                   type="button"
-                  className={`nav-btn ${activeTab === "home" ? "active" : ""}`}
-                  onClick={() => setActiveTab("home")}
-                >
-                  <i className="ri-sparkling-line"></i>
-                  <span>에이전트</span>
-                </button>
-                <button
-                  type="button"
                   className={`nav-btn ${activeTab === "events" ? "active" : ""}`}
                   onClick={() => setActiveTab("events")}
                 >
                   <i className="ri-calendar-event-line"></i>
-                  <span>이벤트 ({events.length})</span>
+                  <span>이벤트</span>
                 </button>
                 <button
                   type="button"
@@ -1442,7 +1434,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                   onClick={() => setActiveTab("mcp")}
                 >
                   <i className="ri-plug-line"></i>
-                  <span>MCP 연동</span>
+                  <span>MCP</span>
                 </button>
               </nav>
 
