@@ -576,6 +576,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       { id: "rag_search", label: "행사 예산 · 일정 조회", tool: "rag_search_tool", args: { query: "DevFest 2026 예산 및 일정" } }
     ];
 
+    const NL = String.fromCharCode(10);
+
     function renderMarkdownSafe(text) {
       if (!text) return "";
       try {
@@ -588,7 +590,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\n/g, "<br/>");
+        .split(NL)
+        .join("<br/>");
     }
 
     function WorkspaceDock({ links = {} }) {
@@ -1030,7 +1033,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
             const { value, done } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
-            const chunks = buffer.split("\n\n");
+            const chunks = buffer.split(NL + NL);
             buffer = chunks.pop() || "";
 
             for (const raw of chunks) {
@@ -1133,7 +1136,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
             const { value, done } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
-            const chunks = buffer.split("\n\n");
+            const chunks = buffer.split(NL + NL);
             buffer = chunks.pop() || "";
 
             for (const raw of chunks) {
@@ -1808,10 +1811,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                   {/* Clean Segmented Sub-Navigation (Prevents Page Clutter) */}
                   <div className="sub-tabs">
                     {[
-                      { id: "overview", label: "행사 소개 · 연사 (WYSIWYG)", icon: "ri-file-text-line" },
+                      { id: "overview", label: "행사 소개 · 연사", icon: "ri-file-text-line" },
                       { id: "rsvp", label: `참가 신청 · 명단 (${selectedEvent.rsvp_count}명)`, icon: "ri-ticket-2-line" },
-                      { id: "media", label: "AI 배너 · 현장 사진 분석", icon: "ri-image-add-line" },
-                      { id: "ops", label: "연사 · 메일 운영 자동화", icon: "ri-mail-send-line" }
+                      { id: "media", label: "AI 배너 · 현장 사진", icon: "ri-image-add-line" }
                     ].map(st => (
                       <button
                         key={st.id}

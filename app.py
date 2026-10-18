@@ -1319,5 +1319,11 @@ def dashboard():
     import importlib
     import genmunity_agent.ui_template as _ui_template
     importlib.reload(_ui_template)
-    return HTMLResponse(content=_ui_template.DASHBOARD_HTML)
+    return HTMLResponse(
+        content=_ui_template.DASHBOARD_HTML,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )
 

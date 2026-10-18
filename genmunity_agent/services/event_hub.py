@@ -281,7 +281,9 @@ def _enrich_event_defaults(ev: Dict[str, Any], state: Dict[str, Any]) -> Dict[st
     cal_html_link = ""
     for inv in reversed(cal_invites):
         if inv.get("calendar_html_link"):
-            cal_html_link = inv["calendar_html_link"]
+            cal_html_link = str(inv["calendar_html_link"]).replace(
+                "https://www.google.com/calendar/", "https://calendar.google.com/calendar/"
+            )
             break
     if not cal_html_link:
         from urllib.parse import quote
