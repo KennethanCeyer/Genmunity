@@ -99,9 +99,25 @@ def test_fastapi_dashboard_and_health():
     health = client.get("/api/health")
     assert health.status_code == 200
     assert health.json()["project"] == "Genmunity"
+    assert health.json()["mail_admin"]["target_admin_email"] == "devstar5011@gcplab.me"
 
     dash = client.get("/")
     assert dash.status_code == 200
     assert "Genmunity" in dash.text
+    assert "devstar5011@gcplab.me" in dash.text
     assert "sniper45han@gmail.com" in dash.text
     assert "aristojeff@gmail.com" in dash.text
+
+
+def test_mail_admin_status_and_toggle():
+    status_resp = client.get("/api/admin/status")
+    assert status_resp.status_code == 200
+    assert status_resp.json()["target_admin_email"] == "devstar5011@gcplab.me"
+
+    toggle_resp = client.post(
+        "/api/admin/trigger/toggle",
+        json={"auto_trigger_enabled": True, "auto_send_form_on_reply": True},
+    )
+    assert toggle_resp.status_code == 200
+    assert toggle_resp.json()["mail_admin"]["auto_trigger_enabled"] is True
+
