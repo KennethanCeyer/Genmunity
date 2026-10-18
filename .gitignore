@@ -1,0 +1,24 @@
+# Python virtual environments & cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets & OAuth tokens (NEVER commit)
+.env
+credentials.json
+token.json
+client_secret*.json
+service_account*.json
+
+# Runtime state & logs
+data/runtime_state.json
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

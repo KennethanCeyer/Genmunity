@@ -1,0 +1,10 @@
+[project]
+name = "genmunity"
+version = "1.0.0"
+description = "Agentic CommunityHub & Event Operations Platform powered by Google ADK and Workspace"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
