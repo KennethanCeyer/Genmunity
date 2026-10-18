@@ -639,18 +639,24 @@ async def process_inbound_inquiry_endpoint(req: InboundInquiryRequest):
     return res
 
 
+@app.get("/api/speakers")
+def api_list_speakers():
+    return get_target_speakers_tool()
+
+
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
-    prompt = req.prompt
+    raw_prompt = (req.prompt or req.message or "").strip()
+    prompt = raw_prompt
     if req.event_id:
         ev = get_event_by_id(req.event_id)
         if ev:
-            prompt = f"[현재 선택된 이벤트 컨텍스트: {ev['title']} (event_id={ev['event_id']})]\n사용자 요청: {req.prompt}"
+            prompt = f"[현재 선택된 이벤트 컨텍스트: {ev['title']} (event_id={ev['event_id']})]\n사용자 요청: {raw_prompt}"
     if req.image_mode:
         img_res = await asyncio.to_thread(
             generate_event_image_with_gemini,
             event_id=req.event_id or "devfest-2026-seoul",
-            prompt=req.prompt,
+            prompt=raw_prompt,
             style=req.image_style or "Modern Minimal Tech",
             set_as_banner=True,
         )
@@ -665,7 +671,7 @@ async def chat_endpoint(req: ChatRequest):
         return {
             "session_id": req.session_id or "session-img",
             "model": img_obj.get("model", GEMINI_IMAGE_MODEL),
-            "prompt": req.prompt,
+            "prompt": raw_prompt,
             "reply": reply_md,
             "active_agents": ["RootAgent", "OpsAgent"],
             "tool_calls": [
@@ -688,6 +694,8 @@ async def chat_endpoint(req: ChatRequest):
 async def chat_stream_endpoint(req: ChatRequest):
     import json
     import time
+
+    raw_prompt = (req.prompt or req.message or "").strip()
 
     if req.image_mode:
         async def _image_gen_stream():
@@ -713,13 +721,13 @@ async def chat_stream_endpoint(req: ChatRequest):
                     "agent": "OpsAgent",
                     "tool_name": "generate_event_image_tool",
                     "label": TOOL_LABELS_KO["generate_event_image_tool"],
-                    "args": {"prompt": req.prompt, "style": req.image_style or "Modern Minimal Tech"},
+                    "args": {"prompt": raw_prompt, "style": req.image_style or "Modern Minimal Tech"},
                 }
             )
             img_res = await asyncio.to_thread(
                 generate_event_image_with_gemini,
                 event_id=req.event_id or "devfest-2026-seoul",
-                prompt=req.prompt,
+                prompt=raw_prompt,
                 style=req.image_style or "Modern Minimal Tech",
                 set_as_banner=True,
             )
@@ -777,11 +785,11 @@ async def chat_stream_endpoint(req: ChatRequest):
 
         return StreamingResponse(_image_gen_stream(), media_type="text/event-stream")
 
-    prompt = req.prompt
+    prompt = raw_prompt
     if req.event_id:
         ev = get_event_by_id(req.event_id)
         if ev:
-            prompt = f"[현재 선택된 이벤트 컨텍스트: {ev['title']} (event_id={ev['event_id']})]\n사용자 요청: {req.prompt}"
+            prompt = f"[현재 선택된 이벤트 컨텍스트: {ev['title']} (event_id={ev['event_id']})]\n사용자 요청: {raw_prompt}"
     return StreamingResponse(
         run_agent_chat_stream(prompt=prompt, session_id=req.session_id),
         media_type="text/event-stream",
@@ -812,7 +820,7 @@ async def mcp_batch_stream_endpoint(req: MCPBatchRequest):
             return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
         sid = req.session_id or "session-mcp"
-        tools_to_run = req.tools or []
+        tools_to_run = req.tools or req.actions or []
         yield _sse(
             {
                 "type": "status",
@@ -828,9 +836,9 @@ async def mcp_batch_stream_endpoint(req: MCPBatchRequest):
         md_sections: List[str] = [f"### MCP 멀티 액션 실행 리포트 (총 {len(tools_to_run)}개 도구)\n"]
 
         for idx, item in enumerate(tools_to_run, start=1):
-            t_name = item.get("name", "rag_search_tool")
+            t_name = item.get("name") or item.get("tool_name") or "rag_search_tool"
             t_args = item.get("arguments") or {}
-            label = TOOL_LABELS_KO.get(t_name, t_name)
+            label = item.get("label") or TOOL_LABELS_KO.get(t_name, t_name)
             step_id = f"mcp-step-{idx}-{t_name}"
             t0 = time.perf_counter()
 
@@ -840,7 +848,10 @@ async def mcp_batch_stream_endpoint(req: MCPBatchRequest):
                     "step_id": step_id,
                     "agent": "MCP Server",
                     "tool_name": t_name,
+                    "tool": t_name,
                     "label": label,
+                    "index": idx,
+                    "total": len(tools_to_run),
                     "args": t_args,
                 }
             )
