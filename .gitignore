@@ -21,8 +21,12 @@ service_account*.json
 data/runtime_state.json
 data/mail_admin_registry.json
 data/community_hub_cookies.json
-data/*.json
+data/events_hub_state.json
 data/uploads/
+!data/indexed_chunks.json
+!data/knowledge_graph.json
+!data/seed/*.json
+!data/raw/*.json
 *.log
 
 # OS files
