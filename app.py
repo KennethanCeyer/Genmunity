@@ -9,6 +9,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from genmunity_agent.config import (
+    GEMINI_PRIMARY_MODEL,
+    GEMINI_SECONDARY_MODEL,
     HARDCODED_SPEAKERS,
     DEVFEST_EVENT_INFO,
     GDG_KOREA_SHEET_URL,
@@ -119,7 +121,9 @@ def health_check():
     return {
         "status": "ok",
         "project": "Genmunity",
-        "framework": "Google ADK (google-adk) + Gemini + Google Workspace",
+        "framework": "Google ADK (google-adk) + Gemini 4.0 Argon / 3.8 Flash + Google Workspace",
+        "primary_model": GEMINI_PRIMARY_MODEL,
+        "secondary_model": GEMINI_SECONDARY_MODEL,
         "agents": ["RootAgent", "SearchAgent", "OpsAgent"],
         "speakers": HARDCODED_SPEAKERS,
         "mail_admin": {
@@ -136,6 +140,8 @@ def get_state():
     state = load_runtime_state()
     admin_reg = sync_live_gmail_profile()
     return {
+        "primary_model": GEMINI_PRIMARY_MODEL,
+        "secondary_model": GEMINI_SECONDARY_MODEL,
         "event_info": DEVFEST_EVENT_INFO,
         "gdg_korea_sheet_url": GDG_KOREA_SHEET_URL,
         "speakers": HARDCODED_SPEAKERS,

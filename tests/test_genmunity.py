@@ -99,7 +99,13 @@ def test_fastapi_dashboard_and_health():
     health = client.get("/api/health")
     assert health.status_code == 200
     assert health.json()["project"] == "Genmunity"
+    assert health.json()["primary_model"] == "gemini-4-argon"
+    assert health.json()["secondary_model"] == "gemini-3.8-flash"
     assert health.json()["mail_admin"]["target_admin_email"] == "devstar5011@gcplab.me"
+
+    logo_resp = client.get("/logo.png")
+    assert logo_resp.status_code == 200
+    assert logo_resp.headers["content-type"] == "image/png"
 
     dash = client.get("/")
     assert dash.status_code == 200
