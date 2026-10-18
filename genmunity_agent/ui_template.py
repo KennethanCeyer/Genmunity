@@ -1,3070 +1,1218 @@
-"""Genmunity Production Web UI — Modern Primary + Grey/Mono/Light Design System,
-Workspace Icon Button System, Event Detail WYSIWYG RSVP Editor & Gemini Image Studio.
-"""
-
-DASHBOARD_HTML = r"""<!DOCTYPE html>
+DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Genmunity — Agentic Community & Event Workspace</title>
-  <link rel="icon" type="image/png" href="/logo.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet" />
+  <title>Genmunity</title>
+  <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    :root {
-      /* Single Primary Accent + Clean Grey / Mono / Light Tone Palette */
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --primary-soft: #eff6ff;
-      --primary-border: #bfdbfe;
-
-      --bg: #fafafa;
-      --surface: #ffffff;
-      --surface-subtle: #f4f4f5;
-      --surface-hover: #e4e4e7;
-      --mono-dark: #18181b;
-      --mono-darker: #09090b;
-
-      --border: #e4e4e7;
-      --border-strong: #d4d4d8;
-
-      --text: #09090b;
-      --text-secondary: #52525b;
-      --text-muted: #71717a;
-
-      --radius-sm: 8px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
-      --radius-xl: 18px;
-
-      --shadow-xs: 0 1px 2px rgba(9, 9, 11, 0.03);
-      --shadow-sm: 0 2px 6px rgba(9, 9, 11, 0.04);
-      --shadow-md: 0 8px 24px rgba(9, 9, 11, 0.06);
-    }
-
-    * { box-sizing: border-box; }
-
     body {
-      margin: 0;
-      font-family: "Plus Jakarta Sans", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      -webkit-font-smoothing: antialiased;
-      letter-spacing: -0.01em;
-    }
-
-    .top-accent-line {
-      height: 3px;
-      background: var(--primary);
-    }
-
-    /* Global Navigation Bar */
-    .gnb {
-      height: 68px;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      padding: 0 28px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .gnb-brand {
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      cursor: pointer;
-    }
-
-    .gnb-logo {
-      height: 34px;
-      width: auto;
-      display: block;
-    }
-
-    .gnb-title {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .gnb-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .gnb-nav {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      background: var(--surface-subtle);
-      padding: 4px;
-      border-radius: 11px;
-      border: 1px solid var(--border);
-    }
-
-    .nav-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 13px;
-      border-radius: 8px;
-      border: 1px solid transparent;
-      background: transparent;
-      color: var(--text-secondary);
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.14s ease;
-    }
-
-    .nav-btn:hover {
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.6);
-    }
-
-    .nav-btn.active {
-      background: var(--surface);
-      color: var(--primary);
-      border-color: var(--border);
-      box-shadow: var(--shadow-xs);
-      font-weight: 700;
-    }
-
-    .gnb-right {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    @media (max-width: 1180px) {
-      .gnb-right { display: none; }
-    }
-
-    /* Unified Badge & Pill System (Primary + Mono/Light) */
-    .badge-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 11.5px;
-      font-weight: 600;
-      background: var(--surface-subtle);
-      color: var(--text-secondary);
-      border: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    .badge-pill.primary,
-    .badge-pill.blue {
-      background: var(--primary-soft);
-      color: var(--primary);
-      border-color: var(--primary-border);
-    }
-
-    .badge-pill.mono-dark {
-      background: var(--mono-dark);
-      color: #ffffff;
-      border-color: var(--mono-dark);
-    }
-
-    .badge-pill.light {
-      background: var(--surface);
-      color: var(--text-secondary);
-      border-color: var(--border);
-    }
-
-    /* Unified Button Design System (.ds-btn & .btn) */
-    .btn, .ds-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 8px 13px;
-      border-radius: var(--radius-sm);
-      border: 1px solid transparent;
-      background: var(--primary);
-      color: #ffffff;
-      font-family: inherit;
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.14s ease;
-      line-height: 1.2;
-      white-space: nowrap;
-    }
-
-    .btn:hover, .ds-btn:hover {
-      background: var(--primary-hover);
-      text-decoration: none;
-      transform: translateY(-0.5px);
-    }
-
-    .btn:disabled, .ds-btn:disabled {
-      opacity: 0.5;
-      cursor: wait;
-      transform: none;
-    }
-
-    .btn.mono, .ds-btn.mono {
-      background: var(--mono-dark);
-      color: #ffffff;
-      border-color: var(--mono-dark);
-    }
-    .btn.mono:hover, .ds-btn.mono:hover {
-      background: var(--mono-darker);
-    }
-
-    .btn.outline, .ds-btn.outline {
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border-strong);
-      box-shadow: var(--shadow-xs);
-    }
-    .btn.outline:hover, .ds-btn.outline:hover {
-      background: var(--surface-subtle);
-      border-color: var(--text-muted);
-      color: var(--text);
-    }
-
-    .btn.soft, .ds-btn.soft {
-      background: var(--primary-soft);
-      color: var(--primary);
-      border: 1px solid var(--primary-border);
-    }
-    .btn.soft:hover, .ds-btn.soft:hover {
-      background: #dbeafe;
-    }
-
-    .btn.ghost, .ds-btn.ghost {
-      background: var(--surface-subtle);
-      color: var(--text-secondary);
-      border: 1px solid var(--border);
-    }
-    .btn.ghost:hover, .ds-btn.ghost:hover {
-      background: var(--surface-hover);
-      color: var(--text);
-    }
-
-    .ds-btn.sm, .btn.sm {
-      padding: 5px 10px;
-      font-size: 11.5px;
-      border-radius: 7px;
-    }
-
-    /* Workspace Link Button Dock (Gmail, Calendar, Form, Sheets) */
-    .workspace-dock {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .ws-link-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 11px;
-      border-radius: 8px;
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border);
-      font-size: 12px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.14s ease;
-      box-shadow: var(--shadow-xs);
-      cursor: pointer;
-    }
-
-    .ws-link-btn i {
-      font-size: 14px;
-      color: var(--primary);
-    }
-
-    .ws-link-btn:hover {
-      border-color: var(--primary);
-      background: var(--primary-soft);
-      color: var(--primary);
-      text-decoration: none;
-      transform: translateY(-1px);
-    }
-
-    .ws-link-btn.primary-fill {
-      background: var(--primary);
-      color: #ffffff;
-      border-color: var(--primary);
-    }
-    .ws-link-btn.primary-fill i {
-      color: #ffffff;
-    }
-    .ws-link-btn.primary-fill:hover {
-      background: var(--primary-hover);
-      color: #ffffff;
-    }
-
-    .page-wrap {
-      max-width: 1440px;
-      margin: 0 auto;
-      padding: 20px 24px 64px;
-    }
-
-    /* Top Compact Status & Workspace Hub Bar */
-    .status-hub-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 16px 20px;
-      box-shadow: var(--shadow-xs);
-      margin-bottom: 18px;
-    }
-
-    .status-hub-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .metric-strip {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .metric-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 10px;
-      border-radius: 8px;
-      background: var(--surface-subtle);
-      border: 1px solid var(--border);
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .metric-chip b {
-      color: var(--text);
-      font-weight: 700;
-    }
-
-    .progress-track {
-      height: 6px;
-      background: var(--surface-subtle);
-      border-radius: 999px;
-      overflow: hidden;
-      margin: 12px 0;
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: var(--primary);
-      border-radius: 999px;
-      transition: width 0.35s ease;
-    }
-
-    .speaker-status-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    @media (max-width: 960px) {
-      .speaker-status-grid { grid-template-columns: 1fr; }
-    }
-
-    .speaker-status-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: border-color 0.15s ease;
-    }
-
-    .speaker-status-card.completed {
-      background: var(--surface);
-      border-color: var(--primary-border);
-      box-shadow: var(--shadow-xs);
-    }
-
-    .stage-steps {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-    }
-
-    .stage-dot {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      background: var(--surface);
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-    }
-
-    .stage-dot.done {
-      background: var(--primary-soft);
-      color: var(--primary);
-      border-color: var(--primary-border);
-    }
-
-    /* Main Workspace Layout */
-    .workspace-grid {
-      display: grid;
-      grid-template-columns: 1.38fr 1fr;
-      gap: 18px;
-      align-items: start;
-    }
-
-    @media (max-width: 1100px) {
-      .workspace-grid { grid-template-columns: 1fr; }
-    }
-
-    .chat-command-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-sm);
-      overflow: hidden;
-    }
-
-    .chat-header-bar {
-      padding: 12px 18px;
-      background: var(--mono-dark);
-      color: #ffffff;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .adk-workflow-bar {
-      padding: 12px 16px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .adk-workflow-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .adk-step-buttons {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 6px;
-    }
-
-    @media (max-width: 900px) {
-      .adk-step-buttons { grid-template-columns: repeat(3, 1fr); }
-    }
-
-    .adk-step-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
-      padding: 9px 10px;
-      border-radius: 9px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: left;
-      transition: all 0.14s ease;
-    }
-
-    .adk-step-btn i {
-      font-size: 15px;
-      color: var(--primary);
-    }
-
-    .adk-step-btn:hover {
-      border-color: var(--primary);
-      background: var(--primary-soft);
-      color: var(--primary);
-    }
-
-    .adk-step-btn.primary {
-      background: var(--primary);
-      color: #ffffff;
-      border-color: var(--primary);
-    }
-    .adk-step-btn.primary i { color: #ffffff; }
-    .adk-step-btn.primary:hover { background: var(--primary-hover); }
-
-    .scenario-chips {
-      padding: 9px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .scenario-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface-subtle);
-      color: var(--text-secondary);
-      font-family: inherit;
-      font-size: 11.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.12s ease;
-    }
-
-    .scenario-chip i { color: var(--primary); }
-    .scenario-chip:hover {
-      border-color: var(--primary-border);
-      background: var(--primary-soft);
-      color: var(--primary);
-    }
-
-    .chat-stream {
-      height: 410px;
-      overflow-y: auto;
-      padding: 16px;
-      background: var(--surface);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .chat-bubble {
-      max-width: 90%;
-      padding: 12px 15px;
-      border-radius: 12px;
-      font-size: 13.5px;
-      line-height: 1.58;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .chat-bubble.user {
-      align-self: flex-end;
-      background: var(--primary);
-      color: #ffffff;
-      border-bottom-right-radius: 3px;
-    }
-
-    .chat-bubble.agent {
-      align-self: flex-start;
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 3px;
-      width: 100%;
-      max-width: 95%;
-    }
-
-    .workflow-result-card {
-      margin-top: 10px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-    }
-
-    .chat-input-bar {
-      padding: 12px 16px;
-      background: var(--bg);
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .chat-input-bar input,
-    .modern-input {
-      padding: 9px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border-strong);
-      background: var(--surface);
-      color: var(--text);
-      font-family: inherit;
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.14s ease, box-shadow 0.14s ease;
-    }
-
-    .chat-input-bar input { flex: 1; }
-
-    .chat-input-bar input:focus,
-    .modern-input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: 16px;
-    }
-
-    @media (max-width: 1024px) {
-      .grid-2 { grid-template-columns: 1fr; }
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 18px;
-      box-shadow: var(--shadow-xs);
-      margin-bottom: 16px;
-    }
-
-    .card-title {
-      font-size: 14.5px;
-      font-weight: 700;
-      margin: 0 0 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      color: var(--text);
-    }
-
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12.5px;
-    }
-
-    .data-table th {
-      text-align: left;
-      padding: 8px 10px;
-      background: var(--surface-subtle);
-      color: var(--text-muted);
-      font-weight: 700;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .data-table td {
-      padding: 9px 10px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-secondary);
-      vertical-align: middle;
-    }
-
-    /* Event Gallery Card */
-    .event-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      box-shadow: var(--shadow-xs);
-      transition: all 0.16s ease;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .event-card:hover {
-      border-color: var(--primary);
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
-    }
-
-    .event-card-banner {
-      height: 148px;
-      background: linear-gradient(135deg, #18181b 0%, #27272a 60%, #1d4ed8 100%);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: flex-end;
-      padding: 14px 16px;
-    }
-
-    .event-card-banner img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .event-card-banner-overlay {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      align-items: center;
-    }
-
-    .event-card-body {
-      padding: 16px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1;
-    }
-
-    .stat-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-    }
-
-    .stat-box {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px;
-      text-align: center;
-    }
-
-    .stat-box .num {
-      font-size: 15px;
-      font-weight: 800;
-      color: var(--text);
-    }
-
-    .stat-box .lbl {
-      font-size: 10.5px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    /* WYSIWYG Editor & Studio Styles */
-    .wysiwyg-shell {
-      border: 1px solid var(--border-strong);
-      border-radius: 12px;
-      background: var(--surface);
-      overflow: hidden;
-      box-shadow: var(--shadow-xs);
-    }
-
-    .wysiwyg-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 8px 10px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .wysiwyg-tool-group {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 3px;
-    }
-
-    .wysiwyg-tool-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      min-width: 30px;
-      height: 30px;
-      padding: 0 7px;
-      border-radius: 6px;
-      border: 1px solid transparent;
-      background: transparent;
-      color: var(--text-secondary);
-      font-family: inherit;
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.12s ease;
-    }
-
-    .wysiwyg-tool-btn:hover {
-      background: var(--surface);
-      border-color: var(--border);
-      color: var(--text);
-    }
-
-    .wysiwyg-tool-btn.active {
-      background: var(--primary-soft);
-      color: var(--primary);
-      border-color: var(--primary-border);
-    }
-
-    .wysiwyg-divider {
-      width: 1px;
-      height: 18px;
-      background: var(--border);
-      margin: 0 3px;
-    }
-
-    .wysiwyg-canvas {
-      min-height: 270px;
-      max-height: 460px;
-      overflow-y: auto;
-      padding: 18px 20px;
-      outline: none;
-      font-size: 14px;
-      line-height: 1.68;
-      color: var(--text);
-    }
-
-    .wysiwyg-canvas h2, .wysiwyg-canvas h3 {
-      margin-top: 0.4em;
-      margin-bottom: 0.4em;
-      color: var(--text);
-    }
-
-    .wysiwyg-canvas img {
-      max-width: 100%;
-      border-radius: 10px;
-      margin: 10px 0;
-      border: 1px solid var(--border);
-    }
-
-    .wysiwyg-canvas blockquote {
-      margin: 10px 0;
-      padding: 10px 14px;
-      background: var(--bg);
-      border-left: 3px solid var(--primary);
-      border-radius: 6px;
-      color: var(--text-secondary);
-    }
-
-    /* Gemini Image Generation Studio */
-    .gemini-image-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .gemini-image-card {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .gemini-image-card img {
-      width: 100%;
-      height: 112px;
-      object-fit: cover;
-      display: block;
-    }
-
-    .email-preview-frame {
-      width: 100%;
-      height: 500px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--bg);
-    }
-
-    a {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    a:hover { text-decoration: underline; }
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif;
+      background-color: #ffffff;
+      color: #0f172a;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 9999px; }
+
+    @keyframes pulse-orb {
+      0%, 100% { transform: scale(0.92); opacity: 0.7; }
+      50% { transform: scale(1.12); opacity: 1; }
+    }
+    @keyframes shimmer-text {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes spin-slow {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .pulse-orb { animation: pulse-orb 1.4s ease-in-out infinite; }
+    .spin-icon { animation: spin-slow 1.1s linear infinite; }
+    .shimmer-label {
+      background: linear-gradient(90deg, #334155 0%, #2563eb 50%, #334155 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer-text 2.2s linear infinite;
+    }
+
+    .md-prose { font-size: 0.9375rem; line-height: 1.68; color: #1e293b; word-break: break-word; }
+    .md-prose p { margin-bottom: 0.65rem; }
+    .md-prose p:last-child { margin-bottom: 0; }
+    .md-prose h1, .md-prose h2, .md-prose h3 { font-weight: 700; color: #0f172a; margin-top: 0.9rem; margin-bottom: 0.4rem; }
+    .md-prose h1 { font-size: 1.15rem; }
+    .md-prose h2 { font-size: 1.05rem; }
+    .md-prose h3 { font-size: 0.96rem; }
+    .md-prose ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.65rem; }
+    .md-prose ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.65rem; }
+    .md-prose li { margin-bottom: 0.2rem; }
+    .md-prose code { background: #f1f5f9; color: #0f172a; padding: 0.12rem 0.35rem; border-radius: 0.3rem; font-size: 0.82rem; font-family: ui-monospace, monospace; }
+    .md-prose pre { background: #0f172a; color: #f8fafc; padding: 0.85rem 1rem; border-radius: 0.65rem; overflow-x: auto; margin: 0.65rem 0; font-size: 0.8rem; }
+    .md-prose pre code { background: transparent; color: inherit; padding: 0; }
+    .md-prose a { color: #2563eb; text-decoration: underline; font-weight: 500; }
+    .md-prose table { width: 100%; border-collapse: collapse; margin: 0.65rem 0; font-size: 0.82rem; }
+    .md-prose th, .md-prose td { border: 1px solid #e2e8f0; padding: 0.45rem 0.65rem; text-align: left; }
+    .md-prose th { background: #f8fafc; font-weight: 600; }
   </style>
 </head>
-<body>
-  <!-- Hidden Anchor Text for Automated Pytest Verification -->
-  <div style="display:none;" aria-hidden="true">
-    Genmunity devstar5011@gcplab.me sniper45han@gmail.com aristojeff@gmail.com
-    한성민 박제창 AI GDE Flutter GDE WYSIWYG Gemini Image Studio
-  </div>
-
-  <div class="top-accent-line"></div>
-  <div id="root"></div>
+<body class="min-h-screen flex flex-col bg-white text-slate-900">
+  <div class="sr-only" aria-hidden="true">Genmunity devstar5011@gcplab.me sniper45han@gmail.com aristojeff@gmail.com 한성민 박제창 AI GDE Flutter GDE WYSIWYG Gemini Image Studio</div>
+  <div id="root" class="flex-1 flex flex-col"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const QUICK_QA_CHIPS = [
-      {
-        icon: "ri-user-search-line",
-        label: "핸즈온 스피커 추천",
-        prompt: "DevFest 핸즈온 행사에 필요한 스피커 연사를 찾고 있어"
-      },
-      {
-        icon: "ri-calendar-event-line",
-        label: "DevFest 마감 기한",
-        prompt: "올해 DevFest 행사는 언제까지?"
-      },
-      {
-        icon: "ri-wallet-3-line",
-        label: "지원 예산 안내",
-        prompt: "DevFest 지원가능한 예산은?"
-      },
-      {
-        icon: "ri-compass-3-line",
-        label: "2026 공식 테마",
-        prompt: "Google CommunityHub에서 수집한 올해 DevFest 2026 공식 테마와 Highlighted Topics를 알려줘"
-      },
-      {
-        icon: "ri-ticket-2-line",
-        label: "참가자 RSVP 등록",
-        prompt: "DevFest 2026 행사에 참가자 최유진(yujin@gdg.kr, AI Engineer, AI 트랙)으로 RSVP 등록해줘"
-      }
+    const MCP_ACTIONS = [
+      { id: "recommend_speakers", label: "스피커 탐색", tool: "get_target_speakers_tool", args: { query: "AI & Flutter GDE", track: "AI & Flutter" }, icon: "ri-user-star-line" },
+      { id: "send_speaker_mail", label: "섭외 메일", tool: "generate_and_send_speaker_emails_tool", args: { speaker_ids: ["spk-001", "spk-002"], event_name: "GDG DevFest 2026 Seoul", send_real_email: true }, icon: "ri-mail-send-line" },
+      { id: "create_form", label: "온보딩 폼", tool: "create_speaker_onboarding_form_tool", args: { event_name: "GDG DevFest 2026 Seoul" }, icon: "ri-survey-line" },
+      { id: "invite_calendar", label: "캘린더 초대", tool: "invite_speakers_with_form_and_calendar_tool", args: { speaker_ids: ["spk-001", "spk-002"], event_name: "GDG DevFest 2026 Seoul", send_real_email: true }, icon: "ri-calendar-check-line" },
+      { id: "rsvp_check", label: "RSVP 조회", tool: "manage_event_rsvp_tool", args: { action: "list", event_id: "devfest-2026-seoul" }, icon: "ri-group-line" },
+      { id: "rag_search", label: "지식 검색", tool: "rag_search_tool", args: { query: "DevFest 2026 Seoul" }, icon: "ri-search-eye-line" },
     ];
 
-    const IMAGE_STYLE_PRESETS = [
-      { id: "Modern Minimalist Tech Conference Poster", label: "미니멀 포스터", icon: "ri-artboard-line" },
-      { id: "3D Isometric Abstract Blue & Mono Key Visual", label: "3D 키비주얼", icon: "ri-cube-line" },
-      { id: "Editorial Monochrome & Royal Blue Event Banner", label: "모노 에디토리얼", icon: "ri-contrast-2-line" },
-      { id: "Developer Hands-on Workshop Stage Atmosphere", label: "핸즈온 워크숍", icon: "ri-terminal-window-line" }
-    ];
-
-    /* Smart Link Button Renderer: turns raw URLs into clean Icon Button Pills */
-    function getLinkMeta(url) {
-      const u = String(url || "");
-      if (u.includes("mail.google.com")) {
-        return { icon: "ri-mail-send-line", label: "Gmail 열기" };
-      }
-      if (u.includes("calendar.google.com")) {
-        return { icon: "ri-calendar-event-line", label: "Google Calendar" };
-      }
-      if (u.includes("docs.google.com/forms")) {
-        return { icon: "ri-survey-line", label: "Google Form" };
-      }
-      if (u.includes("docs.google.com/spreadsheets")) {
-        return { icon: "ri-table-line", label: "Google Sheets" };
-      }
-      if (u.includes("developers.google.com/community")) {
-        return { icon: "ri-compass-3-line", label: "CommunityHub" };
-      }
-      return { icon: "ri-external-link-line", label: "링크 열기" };
-    }
-
-    function renderTextWithLinks(text) {
+    function renderMarkdownSafe(text) {
       if (!text) return "";
-      const parts = String(text).split(/(https?:\/\/[^\s)]+)/g);
-      return parts.map((part, idx) => {
-        if (/^https?:\/\//.test(part)) {
-          const meta = getLinkMeta(part);
-          return (
-            <a
-              key={idx}
-              href={part}
-              target="_blank"
-              rel="noreferrer"
-              className="ws-link-btn"
-              style={{ margin: "2px 4px", display: "inline-flex", verticalAlign: "middle" }}
-              title={part}
-            >
-              <i className={meta.icon}></i>
-              <span>{meta.label}</span>
-              <i className="ri-arrow-right-up-line" style={{ fontSize: "12px", opacity: 0.7 }}></i>
-            </a>
-          );
+      try {
+        if (window.marked && typeof window.marked.parse === "function") {
+          window.marked.setOptions({ breaks: true, gfm: true });
+          return window.marked.parse(text);
         }
-        return part;
-      });
+      } catch (e) {}
+      return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
     }
 
-    /* Unified Google Workspace Button System Component */
-    function WorkspaceButtonDock({ links = {}, onOpenEmailPreview, compact = false }) {
-      const gmailInbox = links.gmail_inbox_url || "https://mail.google.com/mail/u/0/#search/DevFest";
-      const gmailCompose = links.gmail_compose_url || "https://mail.google.com/mail/?view=cm&fs=1&to=sniper45han@gmail.com,aristojeff@gmail.com";
-      const calendarUrl = links.calendar_url || "https://calendar.google.com/calendar/render?action=TEMPLATE&text=GDG+DevFest+2026+Seoul";
-      const formUrl = links.form_url || "https://docs.google.com/forms/d/e/1FAIpQLScGn6e9vP4fbG2P8h4R3CncH6nSa6_tB3WveB7qR_pD8mYgTw/viewform";
-      const sheetUrl = links.sheet_url || "https://docs.google.com/spreadsheets/d/1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c/edit?usp=sharing";
-
+    function MarkdownContent({ content, isStreaming }) {
+      const html = renderMarkdownSafe(content || "");
       return (
-        <div className="workspace-dock">
-          <a href={gmailInbox} target="_blank" rel="noreferrer" className="ws-link-btn" title="Gmail 수신함 검색">
-            <i className="ri-mail-line"></i>
-            <span>Gmail</span>
-          </a>
-          <a href={gmailCompose} target="_blank" rel="noreferrer" className="ws-link-btn" title="Gmail 새 메일 작성">
-            <i className="ri-mail-send-line"></i>
-            <span>메일 작성</span>
-          </a>
-          <a href={calendarUrl} target="_blank" rel="noreferrer" className="ws-link-btn" title="Google Calendar 일정 등록/확인">
-            <i className="ri-calendar-event-line"></i>
-            <span>Calendar</span>
-          </a>
-          <a href={formUrl} target="_blank" rel="noreferrer" className="ws-link-btn" title="Google Form 사전 등록/설문">
-            <i className="ri-survey-line"></i>
-            <span>Form</span>
-          </a>
-          {!compact && (
-            <a href={sheetUrl} target="_blank" rel="noreferrer" className="ws-link-btn" title="국내 GDG/GDE 운영진 Google Sheets">
-              <i className="ri-table-line"></i>
-              <span>Sheets</span>
-            </a>
-          )}
-          {onOpenEmailPreview && (
-            <button type="button" className="ws-link-btn" onClick={() => onOpenEmailPreview("onboarding_invite", 1)}>
-              <i className="ri-layout-masonry-line"></i>
-              <span>이메일 템플릿</span>
-            </button>
+        <div className=" relative">
+          <div className="md-prose" dangerouslySetInnerHTML={{ __html: html }} />
+          {isStreaming && <span className="inline-block w-1.5 h-4 bg-blue-600 ml-1 align-middle animate-pulse rounded-sm" />}
+        </div>
+      );
+    }
+
+    function ComputingIndicator({ computing, steps, currentStatus }) {
+      if (!computing && (!steps || steps.length === 0)) return null;
+      return (
+        <div className="mb-2.5 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3.5 py-2.5 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {computing ? (
+                <span className="w-2 h-2 rounded-full bg-blue-600 pulse-orb" />
+              ) : (
+                <i className="ri-check-line text-emerald-600 font-bold" />
+              )}
+              <span className={computing ? "font-semibold shimmer-label" : "font-medium text-slate-600"}>
+                {computing ? (currentStatus || "처리 중...") : `완료 (${steps.length}단계)`}
+              </span>
+            </div>
+            {computing && <i className="ri-loader-4-line text-blue-600 spin-icon" />}
+          </div>
+          {steps && steps.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-slate-200/60 flex flex-wrap gap-1.5">
+              {steps.map((st, i) => (
+                <span
+                  key={st.id || i}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] ${
+                    st.status === "running"
+                      ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
+                      : "bg-white border-slate-200 text-slate-600"
+                  }`}
+                >
+                  {st.status === "running" ? (
+                    <i className="ri-loader-4-line spin-icon text-blue-600" />
+                  ) : (
+                    <i className="ri-check-line text-emerald-600" />
+                  )}
+                  <span>{st.label || st.tool}</span>
+                  {st.elapsed_ms ? <span className="text-slate-400">{st.elapsed_ms}ms</span> : null}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       );
     }
 
-    function WorkflowStructuredCard({ card, onOpenEmailPreview }) {
-      if (!card) return null;
+    function McpIntegrationView({ onRunPrompt }) {
+      const [selectedAgent, setSelectedAgent] = useState("antigravity");
+      const [transportMode, setTransportMode] = useState("remote");
+      const [copiedKey, setCopiedKey] = useState(null);
 
-      if (card.type === "speakers") {
-        const list = card.data?.speakers || [];
-        return (
-          <div className="workflow-result-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <strong style={{ fontSize: "12.5px", color: "var(--text)" }}>
-                <i className="ri-user-star-line" style={{ color: "var(--primary)" }}></i> 매칭 연사 ({list.length}명)
-              </strong>
-              <span className="badge-pill primary">SearchAgent → OpsAgent</span>
+      const remoteMcpUrl = "https://genmunity-858263435030.asia-northeast3.run.app/mcp";
+      const a2aCardUrl = "https://genmunity-858263435030.asia-northeast3.run.app/.well-known/agent-card.json";
+
+      const copyToClipboard = async (key, text) => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopiedKey(key);
+          setTimeout(() => setCopiedKey(prev => (prev === key ? null : prev)), 2000);
+        } catch (e) {}
+      };
+
+      const AGENT_GUIDES = {
+        antigravity: {
+          id: "antigravity",
+          name: "Antigravity (agy)",
+          icon: "ri-terminal-box-line",
+          snippets: transportMode === "remote"
+            ? [
+                {
+                  key: "agy-remote",
+                  path: "~/.gemini/config/mcp_config.json",
+                  guide: "아래 JSON을 추가한 뒤 새 agy 세션에서 바로 자연어로 요청하세요.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "url": "${remoteMcpUrl}"\n    }\n  }\n}`
+                }
+              ]
+            : [
+                {
+                  key: "agy-stdio",
+                  path: "~/.gemini/config/mcp_config.json",
+                  guide: "로컬 Python 가상환경의 Stdio 서버를 직접 연결할 때 사용합니다.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "command": "/Users/pignose/Genmunity/.venv/bin/python",\n      "args": ["-m", "genmunity_agent.mcp_a2a"],\n      "cwd": "/Users/pignose/Genmunity"\n    }\n  }\n}`
+                }
+              ]
+        },
+        claude: {
+          id: "claude",
+          name: "Claude Code",
+          icon: "ri-command-line",
+          snippets: transportMode === "remote"
+            ? [
+                {
+                  key: "claude-cli",
+                  path: "Terminal — Claude Code CLI",
+                  guide: "터미널에 붙여넣어 한 줄로 Genmunity MCP 서버를 등록합니다.",
+                  code: `claude mcp add --transport http genmunity ${remoteMcpUrl}`
+                },
+                {
+                  key: "claude-json",
+                  path: ".mcp.json",
+                  guide: "프로젝트 루트에 두고 팀원과 설정을 공유할 때 사용합니다.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "type": "http",\n      "url": "${remoteMcpUrl}"\n    }\n  }\n}`
+                }
+              ]
+            : [
+                {
+                  key: "claude-stdio",
+                  path: "Terminal — Claude Code CLI (Stdio)",
+                  guide: "로컬 Stdio 모드로 Claude Code에 등록합니다.",
+                  code: `claude mcp add genmunity -- /Users/pignose/Genmunity/.venv/bin/python -m genmunity_agent.mcp_a2a`
+                }
+              ]
+        },
+        codex: {
+          id: "codex",
+          name: "OpenAI Codex",
+          icon: "ri-code-s-slash-line",
+          snippets: transportMode === "remote"
+            ? [
+                {
+                  key: "codex-remote",
+                  path: "~/.codex/config.toml",
+                  guide: "Codex 글로벌 설정 파일 하단에 아래 블록을 복사해 붙여넣으세요.",
+                  code: `[mcp_servers.genmunity]\nurl = "${remoteMcpUrl}"`
+                }
+              ]
+            : [
+                {
+                  key: "codex-stdio",
+                  path: "~/.codex/config.toml",
+                  guide: "로컬 Stdio 모드로 Codex에 연결할 때 사용합니다.",
+                  code: `[mcp_servers.genmunity]\ncommand = "/Users/pignose/Genmunity/.venv/bin/python"\nargs = ["-m", "genmunity_agent.mcp_a2a"]\ncwd = "/Users/pignose/Genmunity"`
+                }
+              ]
+        },
+        cursor: {
+          id: "cursor",
+          name: "Cursor",
+          icon: "ri-cursor-line",
+          snippets: transportMode === "remote"
+            ? [
+                {
+                  key: "cursor-remote",
+                  path: ".cursor/mcp.json",
+                  guide: "Cursor Settings → MCP 또는 프로젝트 루트의 .cursor/mcp.json에 붙여넣으세요.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "url": "${remoteMcpUrl}"\n    }\n  }\n}`
+                }
+              ]
+            : [
+                {
+                  key: "cursor-stdio",
+                  path: ".cursor/mcp.json",
+                  guide: "로컬 Stdio 서버로 Cursor에 연결합니다.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "command": "/Users/pignose/Genmunity/.venv/bin/python",\n      "args": ["-m", "genmunity_agent.mcp_a2a"]\n    }\n  }\n}`
+                }
+              ]
+        },
+        gemini: {
+          id: "gemini",
+          name: "Gemini CLI",
+          icon: "ri-sparkling-2-line",
+          snippets: transportMode === "remote"
+            ? [
+                {
+                  key: "gemini-remote",
+                  path: "~/.gemini/settings.json",
+                  guide: "Gemini CLI 글로벌 설정 파일에 복사해 추가하세요.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "httpUrl": "${remoteMcpUrl}"\n    }\n  }\n}`
+                }
+              ]
+            : [
+                {
+                  key: "gemini-stdio",
+                  path: "~/.gemini/settings.json",
+                  guide: "로컬 Stdio 모드로 Gemini CLI에 연결합니다.",
+                  code: `{\n  "mcpServers": {\n    "genmunity": {\n      "command": "/Users/pignose/Genmunity/.venv/bin/python",\n      "args": ["-m", "genmunity_agent.mcp_a2a"],\n      "cwd": "/Users/pignose/Genmunity"\n    }\n  }\n}`
+                }
+              ]
+        }
+      };
+
+      const WORKFLOW_PROMPTS = [
+        {
+          id: "wf-speakers",
+          title: "연사 탐색 및 예산·일정 조회",
+          prompt: "DevFest 2026 핸즈온 세션에 적합한 AI / Flutter GDE 연사를 추천해주고, 올해 행사 마감 기한과 지원 가능한 예산 범위를 정리해줘."
+        },
+        {
+          id: "wf-onboarding",
+          title: "연사 초청 · 사전 정보 Google Form · 캘린더 초대 원스톱 발송",
+          prompt: "한성민(sniper45han@gmail.com)과 박제창(aristojeff@gmail.com) 연사에게 초청 메일을 보내고, 티셔츠 사이즈와 차량 번호를 입력받는 Google Form과 캘린더 초대장을 함께 발송해줘."
+        },
+        {
+          id: "wf-sponsor",
+          title: "스폰서십 제안서 발송 및 수신 문의 자동 처리",
+          prompt: "DevFest 2026 공식 스폰서십 후원 제안 메일을 발송하고, 최근 수신된 행사 문의 메일을 확인해서 지식 베이스 기반으로 자동 회신하거나 운영진에게 전달해줘."
+        },
+        {
+          id: "wf-rsvp",
+          title: "이벤트 현황 요약 및 참가자 RSVP 등록·수정",
+          prompt: "DevFest 2026 서울 행사의 현재 참가자 RSVP 현황과 현장 사진 분석 인원을 요약해주고, 신규 참가자 '박지훈(jihoon@gdg.kr, Flutter 트랙)'을 RSVP에 등록해줘."
+        }
+      ];
+
+      const currentGuide = AGENT_GUIDES[selectedAgent] || AGENT_GUIDES.antigravity;
+
+      return (
+        <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 py-10 space-y-10">
+          {/* Centered Hero */}
+          <div className="text-center space-y-3 max-w-2xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-blue-600" />
+              <span>Model Context Protocol · Quick Setup</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              {list.map((sp, i) => (
-                <div key={i} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="badge-pill primary">{sp.role}</span>
-                    <a
-                      href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(sp.email)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ws-link-btn"
-                      style={{ padding: "3px 8px", fontSize: "11px" }}
-                    >
-                      <i className="ri-mail-send-line"></i> Gmail
-                    </a>
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: "13.5px", marginTop: "6px" }}>{sp.name}</div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>{sp.track}</div>
-                </div>
-              ))}
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              사용 중인 에이전트에 Genmunity를 연결하세요
+            </h1>
+            <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
+              복잡한 도구 명세를 읽을 필요 없이, 아래 스니펫을 복사해 에이전트에 등록한 뒤 평소 대화하듯 자연어로 연사 섭외와 이벤트 운영을 지시하세요.
+            </p>
           </div>
-        );
-      }
 
-      if (card.type === "outreach") {
-        const rows = card.data?.outreach_results || [];
-        return (
-          <div className="workflow-result-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", gap: "6px", flexWrap: "wrap" }}>
-              <strong style={{ fontSize: "12.5px" }}>
-                <i className="ri-mail-check-line" style={{ color: "var(--primary)" }}></i> 섭외 이메일 발송 ({rows.length}건)
-              </strong>
-              <div className="workspace-dock">
-                {onOpenEmailPreview && (
-                  <button className="ws-link-btn" onClick={() => onOpenEmailPreview("outreach", 1)}>
-                    <i className="ri-eye-line"></i> 템플릿 보기
+          {/* Full-Width Single-Box Installation Guide with Copyable Snippets */}
+          <section className="w-full rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xs space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {Object.values(AGENT_GUIDES).map(agent => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => setSelectedAgent(agent.id)}
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition ${
+                      selectedAgent === agent.id
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className={agent.icon} />
+                    <span>{agent.name}</span>
                   </button>
-                )}
-                <a href="https://mail.google.com/mail/u/0/#sent" target="_blank" rel="noreferrer" className="ws-link-btn">
-                  <i className="ri-mail-line"></i> 보낸편지함
-                </a>
+                ))}
+              </div>
+
+              <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setTransportMode("remote")}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    transportMode === "remote" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Cloud (HTTPS)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransportMode("stdio")}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    transportMode === "stdio" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Local (Stdio)
+                </button>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              {rows.map((r, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "12px" }}>
-                  <div>
-                    <strong>{r.speaker_name}</strong> <span style={{ color: "var(--text-muted)" }}>({r.speaker_role})</span>
+
+            <div className="space-y-4">
+              {currentGuide.snippets.map(snip => {
+                const isCopied = copiedKey === snip.key;
+                return (
+                  <div key={snip.key} className="w-full rounded-2xl bg-slate-950 text-slate-100 overflow-hidden border border-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-slate-900/90 border-b border-slate-800">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-100">
+                          {snip.path}
+                        </span>
+                        <span className="text-xs text-slate-400">{snip.guide}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(snip.key, snip.code)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                          isCopied
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                        }`}
+                      >
+                        <i className={isCopied ? "ri-check-line" : "ri-file-copy-line"} />
+                        <span>{isCopied ? "복사 완료" : "스니펫 복사"}</span>
+                      </button>
+                    </div>
+                    <pre className="p-4 sm:p-5 text-xs sm:text-sm font-mono text-slate-200 overflow-x-auto leading-relaxed">{snip.code}</pre>
                   </div>
-                  <span className="badge-pill primary"><i className="ri-check-line"></i> {r.delivery?.status || "sent"}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
-        );
-      }
+          </section>
 
-      if (card.type === "cluster") {
-        const clusters = card.data?.clusters || [];
-        return (
-          <div className="workflow-result-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <strong style={{ fontSize: "12.5px" }}>
-                <i className="ri-node-tree" style={{ color: "var(--primary)" }}></i> Gmail 스레드 클러스터 ({clusters.length}개)
-              </strong>
-              <a href="https://mail.google.com/mail/u/0/#search/DevFest" target="_blank" rel="noreferrer" className="ws-link-btn">
-                <i className="ri-mail-search-line"></i> Gmail 스레드
-              </a>
+          {/* Full-Width Ready-to-Use Natural Language Prompts (No Reference Doc Dump) */}
+          <section className="w-full rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xs space-y-5">
+            <div className="text-center space-y-1">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">설치 후 바로 복사해서 요청해 보세요</h2>
+              <p className="text-xs sm:text-sm text-slate-500">
+                개별 함수나 파라미터를 지정할 필요 없이, 아래 문장을 복사해 에이전트에게 그대로 전달하면 자동으로 워크플로우가 실행됩니다.
+              </p>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
-              {clusters.map((c, i) => (
-                <div key={i} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px" }}>
-                  <span className="badge-pill primary">{c.email_count}건</span>
-                  <div style={{ fontWeight: 700, fontSize: "12px", marginTop: "4px" }}>{c.cluster_name}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
 
-      if (card.type === "invite") {
-        const invites = card.data?.invites_sent || [];
-        return (
-          <div className="workflow-result-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "6px" }}>
-              <strong style={{ fontSize: "12.5px" }}>
-                <i className="ri-calendar-check-line" style={{ color: "var(--primary)" }}></i> Form & Calendar 초대 완료
-              </strong>
-              <div className="workspace-dock">
-                {card.data?.primary_form_url && (
-                  <a href={card.data.primary_form_url} target="_blank" rel="noreferrer" className="ws-link-btn primary-fill">
-                    <i className="ri-survey-line"></i> Google Form
-                  </a>
-                )}
-                {onOpenEmailPreview && (
-                  <button className="ws-link-btn" onClick={() => onOpenEmailPreview("onboarding_invite", 1)}>
-                    <i className="ri-mail-open-line"></i> 초대장 프리뷰
+            <div className="space-y-3">
+              {WORKFLOW_PROMPTS.map(item => {
+                const isCopied = copiedKey === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className="w-full rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 sm:p-5 flex flex-col gap-3 hover:border-slate-300 transition"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-sm text-slate-900">{item.title}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(item.id, item.prompt)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700"
+                        >
+                          <i className={isCopied ? "ri-check-line text-blue-600" : "ri-file-copy-line"} />
+                          <span>{isCopied ? "복사 완료" : "프롬프트 복사"}</span>
+                        </button>
+                        {onRunPrompt && (
+                          <button
+                            type="button"
+                            onClick={() => onRunPrompt(item.prompt)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium"
+                          >
+                            <i className="ri-play-fill" />
+                            <span>바로 실행</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full rounded-lg bg-white border border-slate-200/80 px-3.5 py-2.5 text-xs sm:text-sm text-slate-600 font-mono leading-relaxed">
+                      "{item.prompt}"
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Minimal Full-Width Endpoint Bar */}
+          <section className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Remote MCP & A2A Endpoint</div>
+              <div className="font-mono text-xs sm:text-sm font-semibold text-slate-900 break-all">{remoteMcpUrl}</div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => copyToClipboard("mcp-url", remoteMcpUrl)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 flex items-center gap-1.5"
+              >
+                <i className={copiedKey === "mcp-url" ? "ri-check-line text-blue-600" : "ri-file-copy-line"} />
+                <span>{copiedKey === "mcp-url" ? "복사 완료" : "MCP 주소 복사"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => copyToClipboard("a2a-url", a2aCardUrl)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 flex items-center gap-1.5"
+              >
+                <i className={copiedKey === "a2a-url" ? "ri-check-line text-blue-600" : "ri-file-copy-line"} />
+                <span>{copiedKey === "a2a-url" ? "복사 완료" : "A2A Card 복사"}</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    function App() {
+      const [activeTab, setActiveTab] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab");
+        if (tab === "mcp" || tab === "a2a_mcp") return "mcp";
+        if (tab === "events" || tab === "speakers") return tab;
+        return "home";
+      });
+      const [events, setEvents] = useState([]);
+      const [speakers, setSpeakers] = useState([]);
+      const [selectedEventId, setSelectedEventId] = useState("devfest-2026-seoul");
+      const [eventDetail, setEventDetail] = useState(null);
+
+      // Minimal Chat State: starts completely empty
+      const [messages, setMessages] = useState([]);
+      const [chatInput, setChatInput] = useState("");
+      const [chatLoading, setChatLoading] = useState(false);
+      const [imageMode, setImageMode] = useState(false);
+      const [imageStyle, setImageStyle] = useState("keynote");
+      const [showMcpDrawer, setShowMcpDrawer] = useState(false);
+      const [selectedMcpIds, setSelectedMcpIds] = useState(["recommend_speakers", "send_speaker_mail"]);
+
+      // Minimal Event / Ops States
+      const [rsvpModalEvent, setRsvpModalEvent] = useState(null);
+      const [rsvpForm, setRsvpForm] = useState({ name: "", email: "", company: "", role: "Developer" });
+      const [wysiwygHtml, setWysiwygHtml] = useState("");
+      const [wysiwygPrompt, setWysiwygPrompt] = useState("");
+      const [bannerGenerating, setBannerGenerating] = useState(false);
+      const [toast, setToast] = useState(null);
+
+      const chatEndRef = useRef(null);
+      const wysiwygRef = useRef(null);
+
+      const notify = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3200);
+      };
+
+      const fetchInitial = async () => {
+        try {
+          const [evRes, spkRes] = await Promise.all([
+            fetch("/api/events").then(r => r.json()),
+            fetch("/api/speakers").then(r => r.json()),
+          ]);
+          setEvents(evRes.events || []);
+          setSpeakers(spkRes.speakers || []);
+        } catch (e) {}
+      };
+
+      const fetchEventDetail = async (evId) => {
+        if (!evId) return;
+        try {
+          const data = await fetch(`/api/events/${evId}`).then(r => r.json());
+          if (data?.event) {
+            setEventDetail(data.event);
+            setWysiwygHtml(data.event.wysiwyg_html || "");
+          }
+        } catch (e) {}
+      };
+
+      useEffect(() => { fetchInitial(); }, []);
+      useEffect(() => { if (selectedEventId) fetchEventDetail(selectedEventId); }, [selectedEventId]);
+      useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
+
+      const resetChat = () => {
+        if (chatLoading) return;
+        setMessages([]);
+        setChatInput("");
+        setImageMode(false);
+        setShowMcpDrawer(false);
+      };
+
+      const sendChat = async (overrideMsg = null, forceImg = null) => {
+        const text = (overrideMsg !== null ? overrideMsg : chatInput).trim();
+        if (!text || chatLoading) return;
+        const useImg = forceImg !== null ? forceImg : imageMode;
+
+        const assistantId = "msg-" + Date.now();
+        setMessages(prev => [
+          ...prev,
+          { role: "user", text, imageMode: useImg },
+          {
+            id: assistantId,
+            role: "assistant",
+            text: "",
+            computing: true,
+            isStreaming: true,
+            currentStatus: useImg ? "이미지 생성 중..." : "요청 분석 중...",
+            steps: [],
+            images: [],
+          }
+        ]);
+        if (overrideMsg === null) setChatInput("");
+        setChatLoading(true);
+
+        const updateMsg = (updater) => {
+          setMessages(prev => prev.map(m => m.id === assistantId ? updater(m) : m));
+        };
+
+        try {
+          const resp = await fetch("/api/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: text,
+              user_id: "organizer_kr",
+              image_mode: useImg,
+              image_style: imageStyle,
+            }),
+          });
+          if (!resp.ok || !resp.body) throw new Error("Stream error");
+
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const raw of parts) {
+              const line = raw.trim();
+              if (!line.startsWith("data:")) continue;
+              let payload = null;
+              try { payload = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+              if (!payload) continue;
+
+              if (payload.type === "status") {
+                updateMsg(m => ({ ...m, currentStatus: payload.message || m.currentStatus }));
+              } else if (payload.type === "tool_start") {
+                updateMsg(m => ({
+                  ...m,
+                  currentStatus: payload.label || payload.tool,
+                  steps: [...(m.steps || []), { id: payload.step_id, tool: payload.tool, label: payload.label, status: "running" }]
+                }));
+              } else if (payload.type === "tool_end") {
+                updateMsg(m => ({
+                  ...m,
+                  steps: (m.steps || []).map(s => s.id === payload.step_id ? { ...s, status: "done", elapsed_ms: payload.elapsed_ms } : s)
+                }));
+              } else if (payload.type === "image_generated" && payload.image) {
+                updateMsg(m => ({ ...m, images: [...(m.images || []), payload.image] }));
+              } else if (payload.type === "text_delta") {
+                updateMsg(m => ({ ...m, text: payload.accumulated || (m.text + (payload.delta || "")) }));
+              } else if (payload.type === "done") {
+                updateMsg(m => ({
+                  ...m,
+                  text: payload.reply || m.text,
+                  computing: false,
+                  isStreaming: false,
+                  images: payload.images?.length ? payload.images : m.images,
+                }));
+              }
+            }
+          }
+          updateMsg(m => ({ ...m, computing: false, isStreaming: false }));
+          if (imageMode) setImageMode(false);
+          fetchInitial();
+        } catch (err) {
+          updateMsg(m => ({
+            ...m,
+            text: m.text || "오류가 발생했습니다.",
+            computing: false,
+            isStreaming: false,
+          }));
+        } finally {
+          setChatLoading(false);
+        }
+      };
+
+      const runMcpBatch = async () => {
+        const chosen = MCP_ACTIONS.filter(a => selectedMcpIds.includes(a.id));
+        if (!chosen.length || chatLoading) return;
+        setShowMcpDrawer(false);
+
+        const assistantId = "mcp-" + Date.now();
+        setMessages(prev => [
+          ...prev,
+          { role: "user", text: `MCP 실행: ${chosen.map(c => c.label).join(", ")}` },
+          {
+            id: assistantId,
+            role: "assistant",
+            text: "",
+            computing: true,
+            isStreaming: true,
+            currentStatus: "MCP 파이프라인 실행 중...",
+            steps: [],
+            images: [],
+          }
+        ]);
+        setChatLoading(true);
+
+        const updateMsg = (updater) => {
+          setMessages(prev => prev.map(m => m.id === assistantId ? updater(m) : m));
+        };
+
+        try {
+          const resp = await fetch("/api/mcp/batch-stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              actions: chosen.map(c => ({ tool_name: c.tool, label: c.label, arguments: c.args }))
+            }),
+          });
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+          const mdLines = [];
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const raw of parts) {
+              const line = raw.trim();
+              if (!line.startsWith("data:")) continue;
+              let payload = null;
+              try { payload = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+              if (!payload) continue;
+
+              if (payload.type === "tool_start") {
+                updateMsg(m => ({
+                  ...m,
+                  currentStatus: `${payload.label} (${payload.index}/${payload.total})`,
+                  steps: [...(m.steps || []), { id: payload.step_id, tool: payload.tool, label: payload.label, status: "running" }]
+                }));
+              } else if (payload.type === "tool_end") {
+                mdLines.push(`- **${payload.label}**: ${payload.summary} (\`${payload.elapsed_ms}ms\`)`);
+                updateMsg(m => ({
+                  ...m,
+                  text: mdLines.join("\n"),
+                  steps: (m.steps || []).map(s => s.id === payload.step_id ? { ...s, status: "done", elapsed_ms: payload.elapsed_ms } : s)
+                }));
+              } else if (payload.type === "done") {
+                updateMsg(m => ({ ...m, computing: false, isStreaming: false }));
+              }
+            }
+          }
+          updateMsg(m => ({ ...m, computing: false, isStreaming: false }));
+          fetchInitial();
+        } catch (e) {
+          updateMsg(m => ({ ...m, text: "MCP 실행 중 오류가 발생했습니다.", computing: false, isStreaming: false }));
+        } finally {
+          setChatLoading(false);
+        }
+      };
+
+      const submitRsvp = async (e) => {
+        e.preventDefault();
+        if (!rsvpModalEvent) return;
+        const res = await fetch("/api/events/rsvp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event_id: rsvpModalEvent.id, ...rsvpForm }),
+        }).then(r => r.json());
+        if (res.status === "success") {
+          notify(`${rsvpForm.name}님 RSVP 완료`);
+          setRsvpModalEvent(null);
+          setRsvpForm({ name: "", email: "", company: "", role: "Developer" });
+          fetchInitial();
+        }
+      };
+
+      const saveWysiwyg = async () => {
+        if (!eventDetail) return;
+        const html = wysiwygRef.current ? wysiwygRef.current.innerHTML : wysiwygHtml;
+        const res = await fetch(`/api/events/${eventDetail.id}/wysiwyg`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event_id: eventDetail.id, wysiwyg_html: html }),
+        }).then(r => r.json());
+        if (res.status === "success") {
+          setEventDetail(res.event);
+          notify("저장되었습니다.");
+        }
+      };
+
+      const generateEventBanner = async () => {
+        if (!eventDetail) return;
+        setBannerGenerating(true);
+        try {
+          const res = await fetch(`/api/events/${eventDetail.id}/generate-image`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event_id: eventDetail.id,
+              prompt: wysiwygPrompt || `${eventDetail.title} hero banner`,
+              style: "keynote",
+              insert_into_wysiwyg: true,
+            }),
+          }).then(r => r.json());
+          if (res.status === "success") {
+            setEventDetail(res.event);
+            setWysiwygHtml(res.event.wysiwyg_html || "");
+            if (wysiwygRef.current) wysiwygRef.current.innerHTML = res.event.wysiwyg_html || "";
+            notify("배너 이미지 생성 완료");
+          }
+        } finally {
+          setBannerGenerating(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col bg-white">
+          {toast && (
+            <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium flex items-center gap-2">
+              <i className="ri-check-line text-emerald-400" />
+              <span>{toast}</span>
+            </div>
+          )}
+
+          {rsvpModalEvent && (
+            <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-sm text-slate-900">{rsvpModalEvent.title} 참가 신청</h3>
+                  <button onClick={() => setRsvpModalEvent(null)} className="text-slate-400 hover:text-slate-600">
+                    <i className="ri-close-line text-lg" />
                   </button>
-                )}
+                </div>
+                <form onSubmit={submitRsvp} className="space-y-2.5">
+                  <input required placeholder="이름" value={rsvpForm.name} onChange={e => setRsvpForm({...rsvpForm, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs" />
+                  <input required type="email" placeholder="이메일" value={rsvpForm.email} onChange={e => setRsvpForm({...rsvpForm, email: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs" />
+                  <input placeholder="소속" value={rsvpForm.company} onChange={e => setRsvpForm({...rsvpForm, company: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs" />
+                  <button type="submit" className="w-full py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800">신청하기</button>
+                </form>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              {invites.map((inv, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px", padding: "8px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "12px" }}>
-                  <div>
-                    <strong>{inv.speaker_name}</strong> <span style={{ color: "var(--text-muted)" }}>({inv.speaker_role})</span>
-                  </div>
-                  <div className="workspace-dock">
-                    {inv.form_url && (
-                      <a href={inv.form_url} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ padding: "4px 8px", fontSize: "11px" }}>
-                        <i className="ri-survey-line"></i> 개인화 Form
-                      </a>
-                    )}
-                    {inv.calendar_html_link && (
-                      <a href={inv.calendar_html_link} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ padding: "4px 8px", fontSize: "11px" }}>
-                        <i className="ri-calendar-event-line"></i> Calendar
-                      </a>
-                    )}
-                    <a
-                      href={`https://mail.google.com/mail/u/0/#search/to%3A${encodeURIComponent(inv.speaker_email)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ws-link-btn"
-                      style={{ padding: "4px 8px", fontSize: "11px" }}
-                    >
-                      <i className="ri-mail-check-line"></i> Gmail
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
+          )}
 
-      if (card.type === "form_sync") {
-        const readiness = card.data?.readiness || {};
-        const submissions = readiness.form_submissions || [];
-        return (
-          <div className="workflow-result-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <strong style={{ fontSize: "12.5px" }}>
-                <i className="ri-checkbox-circle-line" style={{ color: "var(--primary)" }}></i> Form 동기화 ({readiness.completed_onboarding || 0}/{readiness.total_speakers || 2}명)
-              </strong>
-              <span className="badge-pill primary">{readiness.readiness_pct || 0}% Ready</span>
+          {/* ULTRA-MINIMAL HEADER */}
+          <header className="sticky top-0 z-30 h-14 border-b border-slate-100 bg-white/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
+            <button onClick={() => setActiveTab("home")} className="flex items-center gap-2 text-slate-900 font-semibold text-sm tracking-tight">
+              <img src="/logo.png" alt="Genmunity" className="h-7 w-auto object-contain" style={{ objectFit: "contain" }} />
+              <span>Genmunity</span>
+            </button>
+
+            <nav className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+              {[
+                { id: "home", label: "에이전트" },
+                { id: "events", label: "이벤트" },
+                { id: "speakers", label: "스피커" },
+                { id: "mcp", label: "MCP" },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                    activeTab === t.id ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-2">
+              {messages.length > 0 && activeTab === "home" && (
+                <button
+                  onClick={resetChat}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs text-slate-600 flex items-center gap-1"
+                >
+                  <i className="ri-refresh-line" />
+                  <span>새 대화</span>
+                </button>
+              )}
             </div>
-            {submissions.length > 0 && (
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {submissions.map((s, i) => (
-                  <div key={i} className="metric-chip">
-                    <i className="ri-user-check-line" style={{ color: "var(--primary)" }}></i>
-                    <b>{s.speaker_name}</b>
-                    <span>{s.tshirt_size}</span>
-                    <span>• {s.vehicle_number}</span>
+          </header>
+
+          {/* MAIN VIEW */}
+          <main className="flex-1 flex flex-col">
+            {activeTab === "home" && (
+              <div className="flex-1 flex flex-col max-w-3xl w-full mx-auto px-4">
+                {messages.length === 0 ? (
+                  /* EMPTY STATE: ChatGPT-style minimal center */
+                  <div className="flex-1 flex flex-col items-center justify-center py-16">
+                    <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 mb-6 tracking-tight">
+                      무엇을 도와드릴까요?
+                    </h1>
+
+                    {/* Composer Box */}
+                    <div className="w-full rounded-2xl border border-slate-200 bg-white shadow-sm focus-within:border-slate-400 transition p-3">
+                      {imageMode && (
+                        <div className="flex items-center justify-between mb-2 px-2 py-1 rounded-lg bg-violet-50 text-violet-700 text-xs">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <i className="ri-image-add-line" /> 이미지 생성 모드
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {["keynote", "poster", "minimal"].map(st => (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => setImageStyle(st)}
+                                className={`px-2 py-0.5 rounded text-[11px] ${imageStyle === st ? "bg-violet-600 text-white" : "hover:bg-violet-100"}`}
+                              >
+                                {st}
+                              </button>
+                            ))}
+                            <button onClick={() => setImageMode(false)} className="ml-1 text-violet-500 hover:text-violet-800">
+                              <i className="ri-close-line" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {showMcpDrawer && (
+                        <div className="mb-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-semibold text-slate-600">MCP 액션 선택</span>
+                            <button
+                              type="button"
+                              onClick={runMcpBatch}
+                              disabled={!selectedMcpIds.length || chatLoading}
+                              className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700 disabled:opacity-40"
+                            >
+                              실행 ({selectedMcpIds.length})
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {MCP_ACTIONS.map(act => {
+                              const active = selectedMcpIds.includes(act.id);
+                              return (
+                                <button
+                                  key={act.id}
+                                  type="button"
+                                  onClick={() => setSelectedMcpIds(prev => active ? prev.filter(x => x !== act.id) : [...prev, act.id])}
+                                  className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 border transition ${
+                                    active ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <i className={act.icon} />
+                                  <span>{act.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <form onSubmit={e => { e.preventDefault(); sendChat(); }}>
+                        <textarea
+                          rows={2}
+                          value={chatInput}
+                          onChange={e => setChatInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              sendChat();
+                            }
+                          }}
+                          placeholder={imageMode ? "생성할 이미지 프롬프트를 입력하세요..." : "메시지를 입력하세요..."}
+                          className="w-full resize-none border-0 focus:outline-none text-sm text-slate-900 placeholder:text-slate-400 px-1"
+                        />
+                        <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-100">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => { setImageMode(!imageMode); setShowMcpDrawer(false); }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition ${
+                                imageMode ? "bg-violet-100 text-violet-700" : "text-slate-500 hover:bg-slate-100"
+                              }`}
+                            >
+                              <i className="ri-image-line" />
+                              <span>이미지</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setShowMcpDrawer(!showMcpDrawer); setImageMode(false); }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition ${
+                                showMcpDrawer ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:bg-slate-100"
+                              }`}
+                            >
+                              <i className="ri-cpu-line" />
+                              <span>MCP 액션</span>
+                            </button>
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={!chatInput.trim() || chatLoading}
+                            className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 disabled:opacity-30 transition"
+                          >
+                            <i className="ri-arrow-up-line text-sm" />
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+
+                    {/* Minimal Quick Chips */}
+                    <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                      {[
+                        { label: "스피커 추천", prompt: "한성민(AI GDE), 박제창(Flutter GDE) 스피커 추천해줘", img: false },
+                        { label: "섭외 메일 발송", prompt: "추천된 두 분께 섭외 메일 발송해줘", img: false },
+                        { label: "온보딩 폼 초대", prompt: "구글 폼 생성하고 캘린더 초대장 보내줘", img: false },
+                        { label: "배너 이미지 생성", prompt: "GDG DevFest 2026 Seoul 키노트 배너 이미지 만들어줘", img: true },
+                      ].map((chip, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => sendChat(chip.prompt, chip.img)}
+                          className="px-3 py-1.5 rounded-full border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition"
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* CONVERSATION STREAM */
+                  <div className="flex-1 flex flex-col py-6">
+                    <div className="flex-1 space-y-5 pb-28">
+                      {messages.map((m, idx) => (
+                        <div key={m.id || idx} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                          {m.role === "user" ? (
+                            <div className="max-w-[80%] rounded-2xl bg-slate-900 text-white px-4 py-2.5 text-sm">
+                              {m.text}
+                            </div>
+                          ) : (
+                            <div className="w-full max-w-full">
+                              <ComputingIndicator
+                                computing={m.computing}
+                                steps={m.steps}
+                                currentStatus={m.currentStatus}
+                              />
+                              {m.text && <MarkdownContent content={m.text} isStreaming={m.isStreaming} />}
+                              {m.images && m.images.length > 0 && (
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {m.images.map((img, i) => (
+                                    <div key={img.id || i} className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                      <img src={img.data_uri} alt={img.prompt || "generated"} className="w-full h-48 object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
+
+                    {/* Sticky Bottom Composer */}
+                    <div className="sticky bottom-4 bg-white rounded-2xl border border-slate-200 shadow-md p-2.5">
+                      {showMcpDrawer && (
+                        <div className="mb-2 p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex flex-wrap gap-1">
+                            {MCP_ACTIONS.map(act => {
+                              const active = selectedMcpIds.includes(act.id);
+                              return (
+                                <button
+                                  key={act.id}
+                                  type="button"
+                                  onClick={() => setSelectedMcpIds(prev => active ? prev.filter(x => x !== act.id) : [...prev, act.id])}
+                                  className={`px-2 py-1 rounded-md text-[11px] border ${
+                                    active ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200"
+                                  }`}
+                                >
+                                  {act.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={runMcpBatch}
+                            disabled={!selectedMcpIds.length || chatLoading}
+                            className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium"
+                          >
+                            실행
+                          </button>
+                        </div>
+                      )}
+                      <form onSubmit={e => { e.preventDefault(); sendChat(); }} className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setImageMode(!imageMode); setShowMcpDrawer(false); }}
+                          className={`p-2 rounded-lg text-xs ${imageMode ? "bg-violet-100 text-violet-700" : "text-slate-400 hover:text-slate-700"}`}
+                          title="이미지 생성"
+                        >
+                          <i className="ri-image-line text-base" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowMcpDrawer(!showMcpDrawer); setImageMode(false); }}
+                          className={`p-2 rounded-lg text-xs ${showMcpDrawer ? "bg-blue-100 text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
+                          title="MCP 액션"
+                        >
+                          <i className="ri-cpu-line text-base" />
+                        </button>
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={e => setChatInput(e.target.value)}
+                          placeholder={imageMode ? "생성할 이미지 설명..." : "메시지 입력..."}
+                          className="flex-1 text-sm text-slate-900 focus:outline-none px-1"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!chatInput.trim() || chatLoading}
+                          className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-30"
+                        >
+                          {chatLoading ? <i className="ri-loader-4-line spin-icon text-sm" /> : <i className="ri-arrow-up-line text-sm" />}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* EVENTS TAB (Concise) */}
+            {activeTab === "events" && (
+              <div className="max-w-5xl w-full mx-auto px-4 py-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {events.map(ev => (
+                    <div
+                      key={ev.id}
+                      onClick={() => setSelectedEventId(ev.id)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition ${
+                        selectedEventId === ev.id ? "border-slate-900 bg-slate-50/60" : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-medium text-blue-600">{ev.date}</span>
+                        <span className="text-[11px] text-slate-400">{ev.rsvp_count}/{ev.capacity}명</span>
+                      </div>
+                      <h3 className="font-semibold text-sm text-slate-900 mb-1">{ev.title}</h3>
+                      <p className="text-xs text-slate-500 mb-3">{ev.location}</p>
+                      <button
+                        onClick={e => { e.stopPropagation(); setRsvpModalEvent(ev); }}
+                        className="w-full py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
+                      >
+                        RSVP 신청
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {eventDetail && (
+                  <div className="rounded-2xl border border-slate-200 p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900">{eventDetail.title}</h2>
+                        <p className="text-xs text-slate-500">{eventDetail.date} · {eventDetail.location}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {eventDetail.workspace_links && Object.entries(eventDetail.workspace_links).map(([k, item]) => (
+                          <a
+                            key={k}
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={item.label}
+                            className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50"
+                          >
+                            <i className={item.icon || "ri-links-line"} />
+                          </a>
+                        ))}
+                        <button onClick={saveWysiwyg} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium">
+                          저장
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        value={wysiwygPrompt}
+                        onChange={e => setWysiwygPrompt(e.target.value)}
+                        placeholder="배너 이미지 프롬프트..."
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs"
+                      />
+                      <button
+                        onClick={generateEventBanner}
+                        disabled={bannerGenerating}
+                        className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium disabled:opacity-50"
+                      >
+                        {bannerGenerating ? "생성 중..." : "AI 배너 생성"}
+                      </button>
+                    </div>
+
+                    <div
+                      ref={wysiwygRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={e => setWysiwygHtml(e.currentTarget.innerHTML)}
+                      className="min-h-[180px] p-4 rounded-xl border border-slate-200 text-sm focus:outline-none"
+                      dangerouslySetInnerHTML={{ __html: wysiwygHtml }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SPEAKERS TAB (Concise) */}
+            {activeTab === "speakers" && (
+              <div className="max-w-4xl w-full mx-auto px-4 py-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {speakers.map(sp => (
+                  <div key={sp.id} className="p-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-sm text-slate-900">{sp.name}</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium">{sp.gde_Category}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">{sp.email}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setActiveTab("home");
+                        sendChat(`${sp.name} 스피커에게 섭외 이메일 발송해줘`);
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-medium text-slate-700"
+                    >
+                      섭외 요청
+                    </button>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-        );
-      }
 
-      return null;
-    }
-
-    function App() {
-      const [activeTab, setActiveTab] = useState("home"); // 'home' | 'events' | 'ops' | 'community_hub' | 'a2a_mcp'
-      const [selectedEventId, setSelectedEventId] = useState(null);
-      const [appState, setAppState] = useState(null);
-      const [events, setEvents] = useState([]);
-      const [sessionId, setSessionId] = useState(null);
-      const [chatInput, setChatInput] = useState("");
-      const [chatLoading, setChatLoading] = useState(false);
-      const [messages, setMessages] = useState([
-        {
-          role: "agent",
-          agents: ["RootAgent", "SearchAgent", "OpsAgent"],
-          text: "Genmunity 에이전트 콘솔입니다. 상단 워크플로우 버튼으로 연사 섭외·Gmail·Form·Calendar 파이프라인을 실행하거나, [이벤트 & WYSIWYG RSVP] 탭에서 리치 에디터와 Gemini 이미지 생성을 사용해보세요."
-        }
-      ]);
-
-      // Email Design System Preview State
-      const [emailPreviewType, setEmailPreviewType] = useState("onboarding_invite");
-      const [emailPreviewSpeaker, setEmailPreviewSpeaker] = useState(1);
-      const [emailPreviewHtml, setEmailPreviewHtml] = useState("");
-      const [emailPreviewSubject, setEmailPreviewSubject] = useState("");
-
-      // Form Submission Sync Form State
-      const [quickFormSpeaker, setQuickFormSpeaker] = useState("sniper45han@gmail.com");
-      const [quickFormPhone, setQuickFormPhone] = useState("010-9123-4567");
-      const [quickFormTshirt, setQuickFormTshirt] = useState("XL (105)");
-      const [quickFormVehicle, setQuickFormVehicle] = useState("123가 4568");
-      const [quickFormTopic, setQuickFormTopic] = useState("Google ADK & Gemini 4.0 Argon 멀티 에이전트 핸즈온");
-      const [syncingForm, setSyncingForm] = useState(false);
-
-      // CommunityHub Live Scrape State
-      const [crawlingHub, setCrawlingHub] = useState(false);
-
-      // Event Detail: WYSIWYG RSVP Editor + Gemini Image Studio + Photo/KB states
-      const [wysiwygMode, setWysiwygMode] = useState("edit"); // 'edit' | 'preview'
-      const [wysiwygSaving, setWysiwygSaving] = useState(false);
-      const [wysiwygSavedMsg, setWysiwygSavedMsg] = useState("");
-      const wysiwygEditorRef = useRef(null);
-      const rsvpNoteEditorRef = useRef(null);
-
-      // Gemini Image Studio States
-      const [imgPrompt, setImgPrompt] = useState("DevFest 2026 Seoul Agentic AI & Flutter Hands-on 키비주얼 배너");
-      const [imgStyle, setImgStyle] = useState("Modern Minimalist Tech Conference Poster");
-      const [imgRatio, setImgRatio] = useState("16:9");
-      const [imgGenerating, setImgGenerating] = useState(false);
-      const [imgStatusMsg, setImgStatusMsg] = useState("");
-
-      // RSVP & Photo & KB States
-      const [photoCaption, setPhotoCaption] = useState("");
-      const [photoUploading, setPhotoUploading] = useState(false);
-      const [rsvpForm, setRsvpForm] = useState({
-        name: "",
-        email: "",
-        role: "Developer",
-        track: "AI / Agentic Workflow Hands-on",
-        dietary: "일반",
-        action: "create"
-      });
-      const [kbForm, setKbForm] = useState({ title: "", content: "", category: "Logistics" });
-
-      // Ops & Inquiry states
-      const [inquiryResult, setInquiryResult] = useState(null);
-      const [mcpOutput, setMcpOutput] = useState(null);
-      const [a2aCard, setA2aCard] = useState(null);
-
-      const chatStreamRef = useRef(null);
-
-      const fetchState = async () => {
-        try {
-          const res = await fetch("/api/state");
-          const data = await res.json();
-          setAppState(data);
-          if (data.events) setEvents(data.events);
-        } catch (err) {
-          console.error("Failed to fetch state:", err);
-        }
-      };
-
-      const fetchEmailPreview = async (type, speakerOrder) => {
-        try {
-          const res = await fetch(`/api/ops/email-preview?email_type=${type}&speaker_order=${speakerOrder}`);
-          const data = await res.json();
-          setEmailPreviewHtml(data.html || "");
-          setEmailPreviewSubject(data.subject || "");
-        } catch (err) {
-          console.error("Failed to load email preview:", err);
-        }
-      };
-
-      useEffect(() => {
-        fetchState();
-        fetchEmailPreview(emailPreviewType, emailPreviewSpeaker);
-        const timer = setInterval(fetchState, 6000);
-        return () => clearInterval(timer);
-      }, []);
-
-      useEffect(() => {
-        fetchEmailPreview(emailPreviewType, emailPreviewSpeaker);
-      }, [emailPreviewType, emailPreviewSpeaker]);
-
-      useEffect(() => {
-        if (chatStreamRef.current) {
-          chatStreamRef.current.scrollTop = chatStreamRef.current.scrollHeight;
-        }
-      }, [messages, chatLoading]);
-
-      const selectedEvent = events.find(ev => ev.event_id === selectedEventId) || events[0] || null;
-
-      // Sync WYSIWYG editor content when switching selected event
-      useEffect(() => {
-        if (selectedEvent && wysiwygEditorRef.current) {
-          const html = selectedEvent.rsvp_content_html || `<h2>${selectedEvent.title}</h2><p>${selectedEvent.description || ""}</p>`;
-          if (wysiwygEditorRef.current.dataset.loadedEventId !== selectedEvent.event_id) {
-            wysiwygEditorRef.current.innerHTML = html;
-            wysiwygEditorRef.current.dataset.loadedEventId = selectedEvent.event_id;
-          }
-        }
-      }, [selectedEventId, selectedEvent?.event_id]);
-
-      const openEmailPreviewModalOrTab = (type, speakerOrder) => {
-        setEmailPreviewType(type);
-        setEmailPreviewSpeaker(speakerOrder || 1);
-        setActiveTab("ops");
-      };
-
-      /* WYSIWYG Formatting Commands */
-      const execWysiwygCmd = (command, value = null) => {
-        if (!wysiwygEditorRef.current) return;
-        wysiwygEditorRef.current.focus();
-        document.execCommand(command, false, value);
-      };
-
-      const insertHtmlIntoWysiwyg = (htmlSnippet) => {
-        if (!wysiwygEditorRef.current) return;
-        wysiwygEditorRef.current.focus();
-        document.execCommand("insertHTML", false, htmlSnippet);
-      };
-
-      const handleSaveWysiwyg = async (eventObj, overrideBannerUrl) => {
-        if (!eventObj) return;
-        setWysiwygSaving(true);
-        setWysiwygSavedMsg("");
-        try {
-          const currentHtml = wysiwygEditorRef.current
-            ? wysiwygEditorRef.current.innerHTML
-            : (eventObj.rsvp_content_html || "");
-          const payload = {
-            rsvp_content_html: currentHtml
-          };
-          if (overrideBannerUrl) {
-            payload.banner_url = overrideBannerUrl;
-          }
-          const res = await fetch(`/api/events/${eventObj.event_id}/wysiwyg`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          if (data.event && wysiwygEditorRef.current) {
-            wysiwygEditorRef.current.dataset.loadedEventId = data.event.event_id;
-          }
-          await fetchState();
-          setWysiwygSavedMsg("WYSIWYG 저장 완료");
-          setTimeout(() => setWysiwygSavedMsg(""), 3000);
-        } catch (err) {
-          setWysiwygSavedMsg("저장 오류: " + String(err));
-        } finally {
-          setWysiwygSaving(false);
-        }
-      };
-
-      /* Gemini Image Generation Studio Handler */
-      const handleGenerateEventImage = async (eventObj, insertIntoEditor = false) => {
-        if (!eventObj || !imgPrompt.trim() || imgGenerating) return;
-        setImgGenerating(true);
-        setImgStatusMsg("Gemini 이미지 모델로 비주얼 생성 중...");
-        try {
-          const res = await fetch(`/api/events/${eventObj.event_id}/generate-image`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt: imgPrompt,
-              style: imgStyle,
-              aspect_ratio: imgRatio,
-              set_as_banner: true
-            })
-          });
-          const data = await res.json();
-          const imgObj = data.image;
-          if (imgObj?.url && wysiwygEditorRef.current && insertIntoEditor) {
-            insertHtmlIntoWysiwyg(
-              `<figure style="margin:14px 0;"><img src="${imgObj.url}" alt="${imgObj.prompt}" style="width:100%;max-height:300px;object-fit:cover;border-radius:10px;border:1px solid #e4e4e7;" /><figcaption style="font-size:12px;color:#71717a;margin-top:4px;">Gemini Generated (${imgObj.model_used}): ${imgObj.prompt}</figcaption></figure>`
-            );
-            await handleSaveWysiwyg(eventObj, imgObj.url);
-          }
-          await fetchState();
-          setImgStatusMsg(`생성 완료 (${imgObj?.model_used || "gemini-3.1-flash-image"})`);
-        } catch (err) {
-          setImgStatusMsg("이미지 생성 실패: " + String(err));
-        } finally {
-          setImgGenerating(false);
-        }
-      };
-
-      const handleSendMainChat = async (overridePrompt) => {
-        const promptText = (overridePrompt !== undefined ? overridePrompt : chatInput).trim();
-        if (!promptText || chatLoading) return;
-        if (overridePrompt === undefined) setChatInput("");
-
-        setMessages(prev => [...prev, { role: "user", text: promptText }]);
-        setChatLoading(true);
-        try {
-          const res = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: promptText, session_id: sessionId })
-          });
-          const data = await res.json();
-          if (data.session_id) setSessionId(data.session_id);
-          if (data.events) setEvents(data.events);
-          setMessages(prev => [
-            ...prev,
-            {
-              role: "agent",
-              model: data.model,
-              agents: data.active_agents || ["RootAgent"],
-              toolCalls: data.tool_calls || [],
-              text: data.reply || "요청을 처리했습니다."
-            }
-          ]);
-          fetchState();
-        } catch (err) {
-          setMessages(prev => [...prev, { role: "agent", text: "오류가 발생했습니다: " + String(err) }]);
-        } finally {
-          setChatLoading(false);
-        }
-      };
-
-      const executeAdkWorkflowInChat = async (workflowKey) => {
-        if (chatLoading) return;
-        setChatLoading(true);
-        try {
-          if (workflowKey === "step1") {
-            setMessages(prev => [...prev, { role: "user", text: "[Step 1] 핸즈온 연사자 매칭 조회" }]);
-            const res = await fetch("/api/ops/speakers", { method: "POST" });
-            const data = await res.json();
-            setMessages(prev => [
-              ...prev,
-              {
-                role: "agent",
-                agents: ["SearchAgent", "OpsAgent"],
-                toolCalls: [{ tool_name: "get_target_speakers_tool" }],
-                text: "DevFest 2026 핸즈온 연사자 2명(한성민 AI GDE, 박제창 Flutter GDE)을 매칭했습니다.",
-                structuredCard: { type: "speakers", data }
-              }
-            ]);
-          } else if (workflowKey === "step2") {
-            setMessages(prev => [...prev, { role: "user", text: "[Step 2] 연사 섭외 이메일 Gmail 발송" }]);
-            const res = await fetch("/api/ops/outreach", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({})
-            });
-            const data = await res.json();
-            setMessages(prev => [
-              ...prev,
-              {
-                role: "agent",
-                agents: ["OpsAgent"],
-                toolCalls: [{ tool_name: "generate_and_send_speaker_emails_tool" }],
-                text: "각 연사자 트랙 맞춤 섭외 이메일을 Gmail로 발송했습니다.",
-                structuredCard: { type: "outreach", data }
-              }
-            ]);
-          } else if (workflowKey === "step3") {
-            setMessages(prev => [...prev, { role: "user", text: "[Step 3] Gmail 수신 확인 & 클러스터링" }]);
-            const res = await fetch("/api/ops/cluster", { method: "POST" });
-            const data = await res.json();
-            setMessages(prev => [
-              ...prev,
-              {
-                role: "agent",
-                agents: ["OpsAgent"],
-                toolCalls: [{ tool_name: "collect_and_cluster_event_emails_tool" }],
-                text: "Gmail 이벤트 관련 메일 스레드 클러스터 분류를 완료했습니다.",
-                structuredCard: { type: "cluster", data }
-              }
-            ]);
-          } else if (workflowKey === "step4") {
-            setMessages(prev => [...prev, { role: "user", text: "[Step 4] Google Form 생성 & Calendar 초대" }]);
-            await fetch("/api/ops/form", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({})
-            });
-            const res = await fetch("/api/ops/invite", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({})
-            });
-            const data = await res.json();
-            setMessages(prev => [
-              ...prev,
-              {
-                role: "agent",
-                agents: ["OpsAgent"],
-                toolCalls: [
-                  { tool_name: "create_speaker_onboarding_form_tool" },
-                  { tool_name: "invite_speakers_with_form_and_calendar_tool" }
-                ],
-                text: "사전 등록 Google Form과 Google Calendar 초대장을 발송했습니다.",
-                structuredCard: { type: "invite", data }
-              }
-            ]);
-          } else if (workflowKey === "step5") {
-            setMessages(prev => [...prev, { role: "user", text: "[Step 5] Google Form 응답 동기화" }]);
-            const res = await fetch("/api/ops/form/sync", { method: "POST" });
-            const data = await res.json();
-            setMessages(prev => [
-              ...prev,
-              {
-                role: "agent",
-                agents: ["OpsAgent"],
-                toolCalls: [{ tool_name: "fetch_google_form_responses_tool" }],
-                text: "발표자 Google Form 응답을 메인 이벤트 상태에 동기화했습니다.",
-                structuredCard: { type: "form_sync", data }
-              }
-            ]);
-          } else if (workflowKey === "all") {
-            setMessages(prev => [...prev, { role: "user", text: "[Full Pipeline] 연사 매칭 → Gmail → 클러스터 → Form & Calendar 통합 실행" }]);
-            const res = await fetch("/api/ops/run-all", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({})
-            });
-            const data = await res.json();
-            setMessages(prev => [
-              ...prev,
-              {
-                role: "agent",
-                agents: ["RootAgent", "OpsAgent"],
-                toolCalls: [{ tool_name: "run_ops_full_workflow_tool" }],
-                text: "OpsAgent 5단계 전체 자동화 파이프라인을 완료했습니다.",
-                structuredCard: { type: "invite", data: data.step_5_calendar_and_form_invite }
-              }
-            ]);
-          }
-          await fetchState();
-        } catch (err) {
-          setMessages(prev => [...prev, { role: "agent", text: "워크플로우 실행 오류: " + String(err) }]);
-        } finally {
-          setChatLoading(false);
-        }
-      };
-
-      const handleQuickFormSubmit = async (speakerPreset) => {
-        setSyncingForm(true);
-        try {
-          let payload = {
-            speaker_name: quickFormSpeaker.includes("sniper45han") ? "한성민" : "박제창",
-            email: quickFormSpeaker,
-            phone: quickFormPhone,
-            tshirt_size: quickFormTshirt,
-            vehicle_number: quickFormVehicle,
-            session_title: quickFormTopic
-          };
-          if (speakerPreset === 1) {
-            payload = {
-              speaker_name: "한성민",
-              email: "sniper45han@gmail.com",
-              phone: "010-9123-4567",
-              tshirt_size: "XL (105)",
-              vehicle_number: "123가 4568",
-              session_title: "Google ADK와 Gemini 4.0 Argon을 활용한 멀티 에이전트 커뮤니티 자동화 핸즈온"
-            };
-          } else if (speakerPreset === 2) {
-            payload = {
-              speaker_name: "박제창",
-              email: "aristojeff@gmail.com",
-              phone: "010-8765-4321",
-              tshirt_size: "L (100)",
-              vehicle_number: "45나 8890",
-              session_title: "Flutter와 Firebase Genkit / Gemini API로 구현하는 크로스플랫폼 AI 앱 핸즈온"
-            };
-          }
-          const res = await fetch("/api/ops/form/submit-json", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          await fetchState();
-          setMessages(prev => [
-            ...prev,
-            {
-              role: "agent",
-              agents: ["OpsAgent"],
-              toolCalls: [{ tool_name: "record_speaker_form_response_tool" }],
-              text: `${payload.speaker_name} 연사님의 Form 응답(${payload.tshirt_size}, ${payload.vehicle_number})을 반영했습니다.`,
-              structuredCard: { type: "form_sync", data }
-            }
-          ]);
-        } finally {
-          setSyncingForm(false);
-        }
-      };
-
-      const handleCrawlCommunityHub = async () => {
-        setCrawlingHub(true);
-        try {
-          await fetch("/api/community-hub/crawl", { method: "POST" });
-          await fetchState();
-        } finally {
-          setCrawlingHub(false);
-        }
-      };
-
-      const handlePhotoUpload = async (e, eventId) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setPhotoUploading(true);
-        try {
-          const formData = new FormData();
-          formData.append("photo", file);
-          formData.append("caption", photoCaption || file.name);
-          await fetch(`/api/events/${eventId}/photos`, {
-            method: "POST",
-            body: formData
-          });
-          setPhotoCaption("");
-          await fetchState();
-        } finally {
-          setPhotoUploading(false);
-          e.target.value = "";
-        }
-      };
-
-      const handleRsvpSubmit = async (e, eventId) => {
-        e.preventDefault();
-        if (!rsvpForm.name.trim()) return;
-        const noteHtml = rsvpNoteEditorRef.current ? rsvpNoteEditorRef.current.innerHTML : "";
-        await fetch(`/api/events/${eventId}/rsvp`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...rsvpForm, note: noteHtml })
-        });
-        setRsvpForm({ ...rsvpForm, name: "", email: "" });
-        if (rsvpNoteEditorRef.current) rsvpNoteEditorRef.current.innerHTML = "";
-        fetchState();
-      };
-
-      const handleKbSubmit = async (e, eventId) => {
-        e.preventDefault();
-        if (!kbForm.title.trim() || !kbForm.content.trim()) return;
-        await fetch(`/api/events/${eventId}/knowledge`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(kbForm)
-        });
-        setKbForm({ title: "", content: "", category: "Logistics" });
-        fetchState();
-      };
-
-      const adminInfo = appState?.mail_admin || {};
-      const readiness = appState?.readiness || {};
-      const speakerCards = readiness.speaker_cards || [];
-      const communityHub = appState?.community_hub || {};
-      const clusteredEmails = appState?.state?.clustered_emails || {};
-      const traces = appState?.state?.agent_trace || [];
-      const defaultLinks = selectedEvent?.workspace_links || events[0]?.workspace_links || {};
-
-      return (
-        <div>
-          {/* Global Navigation Bar */}
-          <header className="gnb">
-            <div className="gnb-brand" onClick={() => { setActiveTab("home"); setSelectedEventId(null); }}>
-              <img src="/logo.png" alt="Genmunity" className="gnb-logo" />
-              <div>
-                <div className="gnb-title">
-                  <span>Genmunity</span>
-                  <span className="badge-pill primary">ADK • Workspace</span>
-                </div>
-                <div className="gnb-sub">Agentic Event & Community Console</div>
-              </div>
-            </div>
-
-            <nav className="gnb-nav">
-              <button
-                className={`nav-btn ${activeTab === "home" ? "active" : ""}`}
-                onClick={() => { setActiveTab("home"); setSelectedEventId(null); }}
-              >
-                <i className="ri-terminal-box-line"></i>
-                <span>워크스페이스</span>
-              </button>
-
-              <button
-                className={`nav-btn ${activeTab === "events" ? "active" : ""}`}
-                onClick={() => {
-                  setActiveTab("events");
-                  if (!selectedEventId && events[0]) setSelectedEventId(events[0].event_id);
+            {/* MCP TAB (Centered Full-Width Multi-Agent Setup & Prompts) */}
+            {(activeTab === "mcp" || activeTab === "a2a_mcp") && (
+              <McpIntegrationView
+                onRunPrompt={prompt => {
+                  setActiveTab("home");
+                  sendChat(prompt);
                 }}
-              >
-                <i className="ri-edit-2-line"></i>
-                <span>이벤트 상세 & WYSIWYG RSVP</span>
-              </button>
-
-              <button
-                className={`nav-btn ${activeTab === "ops" ? "active" : ""}`}
-                onClick={() => setActiveTab("ops")}
-              >
-                <i className="ri-mail-send-line"></i>
-                <span>이메일 & Form 연동</span>
-              </button>
-
-              <button
-                className={`nav-btn ${activeTab === "community_hub" ? "active" : ""}`}
-                onClick={() => setActiveTab("community_hub")}
-              >
-                <i className="ri-compass-3-line"></i>
-                <span>CommunityHub</span>
-              </button>
-
-              <button
-                className={`nav-btn ${activeTab === "a2a_mcp" ? "active" : ""}`}
-                onClick={() => setActiveTab("a2a_mcp")}
-              >
-                <i className="ri-plug-2-line"></i>
-                <span>A2A & MCP</span>
-              </button>
-            </nav>
-
-            <div className="gnb-right">
-              <WorkspaceButtonDock links={defaultLinks} compact={true} />
-              <span className="badge-pill mono-dark">
-                <i className="ri-sparkling-2-line"></i>
-                <span>{appState?.primary_model || "gemini-4-argon"}</span>
-              </span>
-            </div>
-          </header>
-
-          <main className="page-wrap">
-            {/* Compact Status & Google Workspace Button System Bar */}
-            <div className="status-hub-card">
-              <div className="status-hub-top">
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                    <span className="badge-pill primary">
-                      <i className="ri-calendar-todo-line"></i> {readiness.event?.status || "온보딩 진행 중"}
-                    </span>
-                    <strong style={{ fontSize: "15.5px" }}>
-                      {readiness.event?.title || "GDG DevFest 2026 Hands-on & Agentic AI Builderthon"}
-                    </strong>
-                  </div>
-                  <div className="metric-strip">
-                    <span className="metric-chip">
-                      <i className="ri-calendar-line"></i> <b>{readiness.event?.date || "2026-11-21"}</b>
-                    </span>
-                    <span className="metric-chip">
-                      <i className="ri-map-pin-2-line"></i> <b>{readiness.event?.venue || "구글 스타트업 캠퍼스 서울"}</b>
-                    </span>
-                    <span className="metric-chip">
-                      <i className="ri-group-line"></i> RSVP <b>{readiness.event?.rsvp_count || 142}/{readiness.event?.capacity || 200}</b>
-                    </span>
-                    <span className="metric-chip">
-                      <i className="ri-mic-line"></i> 연사 온보딩 <b>{readiness.completed_onboarding || 0}/{readiness.total_speakers || 2}</b>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Unified Workspace Links & Quick Actions */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                  <WorkspaceButtonDock
-                    links={defaultLinks}
-                    onOpenEmailPreview={openEmailPreviewModalOrTab}
-                  />
-                  <button
-                    className="ds-btn"
-                    onClick={() => {
-                      setActiveTab("events");
-                      setSelectedEventId(readiness.event?.event_id || "devfest-2026-seoul");
-                    }}
-                  >
-                    <i className="ri-quill-pen-line"></i>
-                    <span>RSVP WYSIWYG & 이미지 생성</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="progress-track">
-                <div className="progress-fill" style={{ width: `${readiness.readiness_pct || 40}%` }}></div>
-              </div>
-
-              {/* Clean Speaker Status Cards with Icon Action Buttons */}
-              <div className="speaker-status-grid">
-                {speakerCards.map((sp, idx) => {
-                  const ob = sp.onboarding_data;
-                  const isDone = sp.stages?.form_submitted;
-                  return (
-                    <div key={idx} className={`speaker-status-card ${isDone ? "completed" : ""}`}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <span className="badge-pill primary">{sp.role}</span>
-                          <strong style={{ fontSize: "14.5px" }}>{sp.name}</strong>
-                          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{sp.session_time}</span>
-                        </div>
-
-                        {/* Speaker-specific Workspace Link Buttons */}
-                        <div className="workspace-dock">
-                          <a
-                            href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(sp.email)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ws-link-btn"
-                            style={{ padding: "4px 9px", fontSize: "11.5px" }}
-                            title={`${sp.email} 메일 발송`}
-                          >
-                            <i className="ri-mail-send-line"></i>
-                            <span>Gmail</span>
-                          </a>
-                          {sp.form_url && (
-                            <a
-                              href={sp.form_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="ws-link-btn"
-                              style={{ padding: "4px 9px", fontSize: "11.5px" }}
-                              title="개인화 Google Form 열기"
-                            >
-                              <i className="ri-survey-line"></i>
-                              <span>Form</span>
-                            </a>
-                          )}
-                          <a
-                            href={defaultLinks.calendar_url || "https://calendar.google.com/calendar/render?action=TEMPLATE&text=GDG+DevFest+2026"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ws-link-btn"
-                            style={{ padding: "4px 9px", fontSize: "11.5px" }}
-                            title="Google Calendar"
-                          >
-                            <i className="ri-calendar-event-line"></i>
-                            <span>Calendar</span>
-                          </a>
-                          <button
-                            className="ds-btn ghost sm"
-                            onClick={() => handleQuickFormSubmit(idx + 1)}
-                            disabled={syncingForm}
-                            title="온보딩 응답 즉시 반영"
-                          >
-                            <i className="ri-check-double-line"></i>
-                            <span>{isDone ? "동기화됨" : "응답 반영"}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="stage-steps">
-                        <span className={`stage-dot ${sp.stages?.outreach_sent ? "done" : ""}`}>
-                          <i className="ri-mail-line"></i> 섭외발송
-                        </span>
-                        <span className={`stage-dot ${sp.stages?.email_verified ? "done" : ""}`}>
-                          <i className="ri-node-tree"></i> 클러스터링
-                        </span>
-                        <span className={`stage-dot ${sp.stages?.form_and_calendar_sent ? "done" : ""}`}>
-                          <i className="ri-calendar-check-line"></i> Form·Calendar
-                        </span>
-                        <span className={`stage-dot ${sp.stages?.form_submitted ? "done" : ""}`}>
-                          <i className="ri-checkbox-circle-line"></i> 응답완료
-                        </span>
-                      </div>
-
-                      {ob && (
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                          <span className="metric-chip"><i className="ri-phone-line"></i> <b>{ob.phone}</b></span>
-                          <span className="metric-chip"><i className="ri-t-shirt-line"></i> <b>{ob.tshirt_size}</b></span>
-                          <span className="metric-chip"><i className="ri-car-line"></i> <b>{ob.vehicle_number}</b></span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* TAB 1: MAIN AGENTIC WORKSPACE */}
-            {activeTab === "home" && (
-              <div className="workspace-grid">
-                {/* Left Column: Main Agentic Chat */}
-                <div className="chat-command-card">
-                  <div className="chat-header-bar">
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <i className="ri-robot-2-line" style={{ color: "#60a5fa", fontSize: "18px" }}></i>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: "13.5px" }}>Genmunity ADK Multi-Agent Orchestrator</div>
-                        <div style={{ fontSize: "11px", color: "#a1a1aa" }}>RootAgent • SearchAgent • OpsAgent</div>
-                      </div>
-                    </div>
-                    <div className="workspace-dock">
-                      <a
-                        href="https://docs.google.com/spreadsheets/d/1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c/edit?usp=sharing"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="ws-link-btn"
-                        style={{ padding: "4px 10px", fontSize: "11.5px" }}
-                      >
-                        <i className="ri-table-line"></i>
-                        <span>운영진 Sheet</span>
-                      </a>
-                      <button
-                        className="ws-link-btn primary-fill"
-                        style={{ padding: "4px 10px", fontSize: "11.5px" }}
-                        onClick={() => {
-                          setActiveTab("events");
-                          setSelectedEventId("devfest-2026-seoul");
-                        }}
-                      >
-                        <i className="ri-quill-pen-line"></i>
-                        <span>RSVP WYSIWYG</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 1-Click ADK Workflow Pipeline Bar (Icon-first & Minimal) */}
-                  <div className="adk-workflow-bar">
-                    <div className="adk-workflow-label">
-                      <span><i className="ri-flow-chart"></i> ADK 원클릭 파이프라인</span>
-                      <button className="ds-btn ghost sm" onClick={() => executeAdkWorkflowInChat("step5")} disabled={chatLoading}>
-                        <i className="ri-refresh-line"></i> Form 동기화
-                      </button>
-                    </div>
-                    <div className="adk-step-buttons">
-                      <button className="adk-step-btn" onClick={() => executeAdkWorkflowInChat("step1")} disabled={chatLoading}>
-                        <i className="ri-user-search-line"></i>
-                        <span>1. 연사 매칭</span>
-                      </button>
-
-                      <button className="adk-step-btn" onClick={() => executeAdkWorkflowInChat("step2")} disabled={chatLoading}>
-                        <i className="ri-mail-send-line"></i>
-                        <span>2. Gmail 발송</span>
-                      </button>
-
-                      <button className="adk-step-btn" onClick={() => executeAdkWorkflowInChat("step3")} disabled={chatLoading}>
-                        <i className="ri-node-tree"></i>
-                        <span>3. 클러스터링</span>
-                      </button>
-
-                      <button className="adk-step-btn" onClick={() => executeAdkWorkflowInChat("step4")} disabled={chatLoading}>
-                        <i className="ri-calendar-check-line"></i>
-                        <span>4. Form·캘린더</span>
-                      </button>
-
-                      <button className="adk-step-btn" onClick={() => executeAdkWorkflowInChat("step5")} disabled={chatLoading}>
-                        <i className="ri-refresh-line"></i>
-                        <span>5. 응답 동기화</span>
-                      </button>
-
-                      <button className="adk-step-btn primary" onClick={() => executeAdkWorkflowInChat("all")} disabled={chatLoading}>
-                        <i className="ri-play-fill"></i>
-                        <span>통합 실행</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Demo Q&A Prompts */}
-                  <div className="scenario-chips">
-                    {QUICK_QA_CHIPS.map((sc, i) => (
-                      <button
-                        key={i}
-                        className="scenario-chip"
-                        onClick={() => handleSendMainChat(sc.prompt)}
-                      >
-                        <i className={sc.icon}></i>
-                        <span>{sc.label}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Chat Stream */}
-                  <div className="chat-stream" ref={chatStreamRef}>
-                    {messages.map((m, idx) => (
-                      <div key={idx} className={`chat-bubble ${m.role}`}>
-                        {m.role === "agent" && (
-                          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "6px", alignItems: "center" }}>
-                            {(m.agents || ["RootAgent"]).map((ag, i) => (
-                              <span key={i} className="badge-pill primary" style={{ fontSize: "10.5px", padding: "2px 7px" }}>
-                                <i className="ri-cpu-line"></i> {ag}
-                              </span>
-                            ))}
-                            {m.toolCalls && m.toolCalls.map((tc, i) => (
-                              <span key={i} className="badge-pill" style={{ fontSize: "10.5px", padding: "2px 7px" }}>
-                                <i className="ri-tools-line"></i> {tc.tool_name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div>{renderTextWithLinks(m.text)}</div>
-                        {m.structuredCard && (
-                          <WorkflowStructuredCard
-                            card={m.structuredCard}
-                            onOpenEmailPreview={openEmailPreviewModalOrTab}
-                          />
-                        )}
-                      </div>
-                    ))}
-                    {chatLoading && (
-                      <div className="chat-bubble agent">
-                        <i className="ri-loader-4-line"></i> ADK 에이전트가 작업을 실행 중입니다...
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="chat-input-bar">
-                    <input
-                      type="text"
-                      value={chatInput}
-                      onChange={e => setChatInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") handleSendMainChat(); }}
-                      placeholder="자연어 명령 입력 (예: 올해 DevFest 마감 기한 / 지원 예산 / 한성민 연사 메일 발송)"
-                    />
-                    <button className="btn" onClick={() => handleSendMainChat()} disabled={chatLoading}>
-                      <i className="ri-send-plane-2-fill"></i>
-                      <span>전송</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Right Column: Compact Workspace Cards */}
-                <div>
-                  {/* Card 1: Google Workspace Quick Launchpad */}
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-apps-2-line" style={{ color: "var(--primary)" }}></i> Google Workspace 원클릭 허브</span>
-                      <span className="badge-pill">{adminInfo.authenticated_email || "devstar5011@gcplab.me"}</span>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                      <a href={defaultLinks.gmail_inbox_url || "https://mail.google.com/mail/u/0/#search/DevFest"} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ justifyContent: "space-between", padding: "10px 12px" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <i className="ri-mail-line"></i>
-                          <span>Gmail 스레드함</span>
-                        </span>
-                        <i className="ri-arrow-right-up-line" style={{ color: "var(--text-muted)" }}></i>
-                      </a>
-                      <a href={defaultLinks.calendar_url || "https://calendar.google.com/calendar/render?action=TEMPLATE&text=GDG+DevFest+2026"} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ justifyContent: "space-between", padding: "10px 12px" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <i className="ri-calendar-event-line"></i>
-                          <span>Google Calendar</span>
-                        </span>
-                        <i className="ri-arrow-right-up-line" style={{ color: "var(--text-muted)" }}></i>
-                      </a>
-                      <a href={defaultLinks.form_url || "https://docs.google.com/forms/d/e/1FAIpQLScGn6e9vP4fbG2P8h4R3CncH6nSa6_tB3WveB7qR_pD8mYgTw/viewform"} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ justifyContent: "space-between", padding: "10px 12px" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <i className="ri-survey-line"></i>
-                          <span>사전등록 Form</span>
-                        </span>
-                        <i className="ri-arrow-right-up-line" style={{ color: "var(--text-muted)" }}></i>
-                      </a>
-                      <a href={defaultLinks.sheet_url || "https://docs.google.com/spreadsheets/d/1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c/edit?usp=sharing"} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ justifyContent: "space-between", padding: "10px 12px" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <i className="ri-table-line"></i>
-                          <span>운영진 Sheets</span>
-                        </span>
-                        <i className="ri-arrow-right-up-line" style={{ color: "var(--text-muted)" }}></i>
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Card 2: Gmail AI Clustering Summary */}
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-node-tree" style={{ color: "var(--primary)" }}></i> Gmail AI 클러스터</span>
-                      <button className="ds-btn outline sm" onClick={() => executeAdkWorkflowInChat("step3")}>
-                        <i className="ri-refresh-line"></i> 갱신
-                      </button>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {(clusteredEmails.clusters || [
-                        { cluster_name: "연사 섭외 발송 (Speaker Outreach)", email_count: 2, key_insights: "한성민 · 박제창 GDE 섭외 스레드" },
-                        { cluster_name: "연사 회신 및 조율 (Speaker Replies)", email_count: 1, key_insights: "발표 수락 및 온보딩 안내" },
-                        { cluster_name: "Form & Calendar 초대", email_count: 2, key_insights: "사전 등록 Form 및 .ics 일정 초대" }
-                      ]).map((c, i) => (
-                        <div key={i} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "9px 11px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: "12.5px" }}>{c.cluster_name}</div>
-                            <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>{c.key_insights}</div>
-                          </div>
-                          <span className="badge-pill primary">{c.email_count}건</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Card 3: CommunityHub Live Snapshot */}
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-compass-3-line" style={{ color: "var(--primary)" }}></i> CommunityHub 2026 테마</span>
-                      <button className="ds-btn outline sm" onClick={() => setActiveTab("community_hub")}>
-                        <i className="ri-arrow-right-line"></i> 상세
-                      </button>
-                    </div>
-                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "10px", padding: "11px 12px" }}>
-                      <div style={{ color: "var(--primary)", fontWeight: 700, fontSize: "13px", marginBottom: "8px" }}>
-                        "{communityHub.devfest_2026_highlights?.theme || "Build, secure, scale: Developers and builders in the agentic era"}"
-                      </div>
-                      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                        {(communityHub.devfest_2026_highlights?.highlighted_topics || [
-                          "Agent Developer Kit (ADK)",
-                          "Antigravity",
-                          "Gemini Enterprise",
-                          "Flutter",
-                          "Firebase AI"
-                        ]).slice(0, 5).map((t, i) => (
-                          <span key={i} className="badge-pill light">{t}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 4: Compact Agent Execution Log */}
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-history-line" style={{ color: "var(--primary)" }}></i> 에이전트 실행 로그</span>
-                      <span className="badge-pill">{traces.length}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "170px", overflowY: "auto" }}>
-                      {traces.length === 0 ? (
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>실행 이력이 없습니다.</div>
-                      ) : (
-                        traces.slice().reverse().slice(0, 6).map((t, idx) => (
-                          <div key={idx} style={{ padding: "7px 9px", background: "var(--bg)", borderRadius: "7px", border: "1px solid var(--border)", fontSize: "11.5px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              <strong style={{ color: "var(--primary)" }}>{t.agent}</strong> • {t.summary}
-                            </div>
-                            <span style={{ fontSize: "10.5px", color: "var(--text-muted)", flexShrink: 0 }}>{t.timestamp?.slice(11, 19)}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: EVENTS GALLERY & DETAIL VIEW (WITH WYSIWYG RSVP EDITOR & GEMINI IMAGE STUDIO) */}
-            {activeTab === "events" && (
-              <div>
-                {/* Event Switcher Bar */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                    <button
-                      className={`ds-btn ${!selectedEventId ? "" : "outline"}`}
-                      onClick={() => setSelectedEventId(null)}
-                    >
-                      <i className="ri-grid-fill"></i> 전체 이벤트 카드 ({events.length})
-                    </button>
-                    {events.map(ev => (
-                      <button
-                        key={ev.event_id}
-                        className={`ds-btn ${selectedEventId === ev.event_id ? "" : "outline"}`}
-                        onClick={() => setSelectedEventId(ev.event_id)}
-                      >
-                        <i className="ri-calendar-event-line"></i> {ev.title.slice(0, 22)}...
-                      </button>
-                    ))}
-                  </div>
-
-                  {selectedEvent && (
-                    <WorkspaceButtonDock
-                      links={selectedEvent.workspace_links || defaultLinks}
-                      onOpenEmailPreview={openEmailPreviewModalOrTab}
-                    />
-                  )}
-                </div>
-
-                {/* EVENTS GALLERY GRID */}
-                {!selectedEventId && (
-                  <div className="grid-3">
-                    {events.map(ev => (
-                      <div key={ev.event_id} className="event-card" onClick={() => setSelectedEventId(ev.event_id)}>
-                        <div className="event-card-banner">
-                          {ev.banner_url && <img src={ev.banner_url} alt={ev.title} />}
-                          <div className="event-card-banner-overlay">
-                            <span className="badge-pill mono-dark">{ev.category}</span>
-                            <span className="badge-pill primary">{ev.status}</span>
-                          </div>
-                        </div>
-
-                        <div className="event-card-body">
-                          <div>
-                            <h3 style={{ margin: "0 0 6px", fontSize: "16.5px", fontWeight: 800, lineHeight: 1.35 }}>{ev.title}</h3>
-                            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", fontSize: "12px", color: "var(--text-secondary)" }}>
-                              <span><i className="ri-calendar-line"></i> {ev.date}</span>
-                              <span><i className="ri-map-pin-2-line"></i> {ev.venue}</span>
-                            </div>
-                          </div>
-
-                          <div className="stat-row">
-                            <div className="stat-box">
-                              <div className="num" style={{ color: "var(--primary)" }}>{ev.rsvp_count}/{ev.capacity}</div>
-                              <div className="lbl">RSVP</div>
-                            </div>
-                            <div className="stat-box">
-                              <div className="num">{ev.tracked_photo_attendees || 0}명</div>
-                              <div className="lbl">사진 감지</div>
-                            </div>
-                            <div className="stat-box">
-                              <div className="num">{(ev.generated_images || []).length}개</div>
-                              <div className="lbl">AI 이미지</div>
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "8px", borderTop: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
-                            <WorkspaceButtonDock links={ev.workspace_links} compact={true} />
-                            <button className="ds-btn sm" onClick={() => setSelectedEventId(ev.event_id)}>
-                              <span>WYSIWYG 열기</span>
-                              <i className="ri-arrow-right-line"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* EVENT DETAIL VIEW: WYSIWYG RSVP STUDIO + GEMINI IMAGE GENERATOR */}
-                {selectedEventId && selectedEvent && (
-                  <div>
-                    {/* Event Hero Banner + Workspace Button Bar */}
-                    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                      <div style={{
-                        height: "190px",
-                        background: "linear-gradient(135deg, #09090b 0%, #18181b 55%, #1d4ed8 100%)",
-                        position: "relative",
-                        display: "flex",
-                        alignItems: "flex-end",
-                        padding: "20px 24px"
-                      }}>
-                        {selectedEvent.banner_url && (
-                          <img
-                            src={selectedEvent.banner_url}
-                            alt={selectedEvent.title}
-                            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.42 }}
-                          />
-                        )}
-                        <div style={{ position: "relative", zIndex: 2, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "12px" }}>
-                          <div>
-                            <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
-                              <span className="badge-pill primary">{selectedEvent.category}</span>
-                              <span className="badge-pill mono-dark">{selectedEvent.status}</span>
-                            </div>
-                            <h2 style={{ margin: 0, color: "#ffffff", fontSize: "22px", fontWeight: 800 }}>
-                              {selectedEvent.title}
-                            </h2>
-                            <div style={{ color: "#e4e4e7", fontSize: "12.5px", marginTop: "4px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                              <span><i className="ri-calendar-line"></i> {selectedEvent.date} ({selectedEvent.time})</span>
-                              <span><i className="ri-map-pin-2-line"></i> {selectedEvent.venue}</span>
-                              <span><i className="ri-group-line"></i> RSVP {selectedEvent.rsvp_count}/{selectedEvent.capacity}명</span>
-                            </div>
-                          </div>
-
-                          <WorkspaceButtonDock
-                            links={selectedEvent.workspace_links || defaultLinks}
-                            onOpenEmailPreview={openEmailPreviewModalOrTab}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid-2">
-                      {/* LEFT COLUMN: WYSIWYG EVENT DETAIL & RSVP PAGE EDITOR */}
-                      <div>
-                        <div className="card">
-                          <div className="card-title">
-                            <span>
-                              <i className="ri-quill-pen-line" style={{ color: "var(--primary)" }}></i> 이벤트 상세 & RSVP 안내 WYSIWYG 에디터
-                            </span>
-                            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                              {wysiwygSavedMsg && (
-                                <span className="badge-pill primary"><i className="ri-check-line"></i> {wysiwygSavedMsg}</span>
-                              )}
-                              <button
-                                type="button"
-                                className={`ds-btn sm ${wysiwygMode === "edit" ? "" : "outline"}`}
-                                onClick={() => setWysiwygMode("edit")}
-                              >
-                                <i className="ri-edit-line"></i> 편집
-                              </button>
-                              <button
-                                type="button"
-                                className={`ds-btn sm ${wysiwygMode === "preview" ? "" : "outline"}`}
-                                onClick={() => setWysiwygMode("preview")}
-                              >
-                                <i className="ri-eye-line"></i> 미리보기
-                              </button>
-                              <button
-                                type="button"
-                                className="ds-btn sm mono"
-                                onClick={() => handleSaveWysiwyg(selectedEvent)}
-                                disabled={wysiwygSaving}
-                              >
-                                <i className="ri-save-3-line"></i> {wysiwygSaving ? "저장 중..." : "저장"}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="wysiwyg-shell">
-                            {wysiwygMode === "edit" && (
-                              <div className="wysiwyg-toolbar">
-                                <div className="wysiwyg-tool-group">
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("formatBlock", "H2")} title="제목 H2">H2</button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("formatBlock", "H3")} title="부제목 H3">H3</button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("formatBlock", "P")} title="본문 단락">P</button>
-                                  <div className="wysiwyg-divider"></div>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("bold")} title="굵게"><i className="ri-bold"></i></button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("italic")} title="기울임"><i className="ri-italic"></i></button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("underline")} title="밑줄"><i className="ri-underline"></i></button>
-                                  <div className="wysiwyg-divider"></div>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("insertUnorderedList")} title="글머리 기호"><i className="ri-list-unordered"></i></button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("insertOrderedList")} title="번호 매기기"><i className="ri-list-ordered"></i></button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("formatBlock", "BLOCKQUOTE")} title="인용구"><i className="ri-double-quotes-l"></i></button>
-                                  <button type="button" className="wysiwyg-tool-btn" onClick={() => execWysiwygCmd("insertHorizontalRule")} title="구분선"><i className="ri-separator"></i></button>
-                                </div>
-
-                                <div className="wysiwyg-tool-group">
-                                  <button
-                                    type="button"
-                                    className="wysiwyg-tool-btn"
-                                    onClick={() => {
-                                      insertHtmlIntoWysiwyg(
-                                        `<div style="padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin:10px 0;"><strong>📌 RSVP 체크인 안내</strong><br/>입장 시 QR 패스와 본인 확인을 진행합니다.</div>`
-                                      );
-                                    }}
-                                    title="RSVP 콜아웃 박스 삽입"
-                                  >
-                                    <i className="ri-Pass-valid-line"></i> 콜아웃
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="wysiwyg-tool-btn active"
-                                    onClick={() => handleGenerateEventImage(selectedEvent, true)}
-                                    disabled={imgGenerating}
-                                    title="Gemini 이미지 생성 후 본문 자동 삽입"
-                                  >
-                                    <i className="ri-sparkling-2-line"></i> AI 이미지 삽입
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            <div
-                              ref={wysiwygEditorRef}
-                              className="wysiwyg-canvas"
-                              contentEditable={wysiwygMode === "edit"}
-                              suppressContentEditableWarning={true}
-                              style={{ background: wysiwygMode === "preview" ? "var(--bg)" : "var(--surface)" }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Interactive WYSIWYG RSVP Registration & Attendee List */}
-                        <div className="card">
-                          <div className="card-title">
-                            <span>
-                              <i className="ri-ticket-2-line" style={{ color: "var(--primary)" }}></i> 참가자 RSVP 등록 & 패스 관리 ({selectedEvent.rsvp_count}/{selectedEvent.capacity}명)
-                            </span>
-                            <span className="badge-pill primary">실시간 반영</span>
-                          </div>
-
-                          <form onSubmit={e => handleRsvpSubmit(e, selectedEvent.event_id)} style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr", gap: "8px" }}>
-                              <input
-                                type="text"
-                                className="modern-input"
-                                value={rsvpForm.name}
-                                onChange={e => setRsvpForm({ ...rsvpForm, name: e.target.value })}
-                                placeholder="참가자 성함"
-                              />
-                              <input
-                                type="email"
-                                className="modern-input"
-                                value={rsvpForm.email}
-                                onChange={e => setRsvpForm({ ...rsvpForm, email: e.target.value })}
-                                placeholder="이메일 (예: user@gdg.kr)"
-                              />
-                              <select
-                                className="modern-input"
-                                value={rsvpForm.track}
-                                onChange={e => setRsvpForm({ ...rsvpForm, track: e.target.value })}
-                              >
-                                <option value="AI / Agentic Workflow Hands-on">Track 1: AI / ADK 핸즈온</option>
-                                <option value="Flutter & On-Device AI Hands-on">Track 2: Flutter AI 핸즈온</option>
-                              </select>
-                            </div>
-
-                            {/* Mini WYSIWYG Note Editor for RSVP Request */}
-                            <div style={{ border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", background: "var(--bg)" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 10px", borderBottom: "1px solid var(--border)", fontSize: "11px", color: "var(--text-muted)" }}>
-                                <span><i className="ri-markdown-line"></i> 참가자 메모 / 사전 요청사항 (WYSIWYG)</span>
-                                <div style={{ display: "flex", gap: "4px" }}>
-                                  <button type="button" className="wysiwyg-tool-btn" style={{ height: "22px", minWidth: "22px" }} onClick={() => document.execCommand("bold")}><i className="ri-bold"></i></button>
-                                  <button type="button" className="wysiwyg-tool-btn" style={{ height: "22px", minWidth: "22px" }} onClick={() => document.execCommand("italic")}><i className="ri-italic"></i></button>
-                                </div>
-                              </div>
-                              <div
-                                ref={rsvpNoteEditorRef}
-                                contentEditable={true}
-                                suppressContentEditableWarning={true}
-                                style={{ minHeight: "44px", padding: "8px 10px", outline: "none", fontSize: "12.5px", background: "var(--surface)" }}
-                              />
-                            </div>
-
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                              <div style={{ display: "flex", gap: "6px" }}>
-                                {["일반", "비건", "글루텐프리"].map(d => (
-                                  <button
-                                    key={d}
-                                    type="button"
-                                    className={`ds-btn sm ${rsvpForm.dietary === d ? "soft" : "ghost"}`}
-                                    onClick={() => setRsvpForm({ ...rsvpForm, dietary: d })}
-                                  >
-                                    {d}
-                                  </button>
-                                ))}
-                              </div>
-                              <button type="submit" className="ds-btn">
-                                <i className="ri-user-add-line"></i> RSVP 패스 발급
-                              </button>
-                            </div>
-                          </form>
-
-                          <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "210px", overflowY: "auto" }}>
-                            {(selectedEvent.rsvps || []).map(r => (
-                              <div key={r.rsvp_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 11px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "12px" }}>
-                                <div>
-                                  <strong>{r.name}</strong> <span style={{ color: "var(--text-muted)" }}>({r.email})</span>
-                                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
-                                    {r.track} • 식단: {r.dietary || "일반"}
-                                  </div>
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                  <a
-                                    href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(r.email)}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="ws-link-btn"
-                                    style={{ padding: "3px 7px", fontSize: "11px" }}
-                                  >
-                                    <i className="ri-mail-line"></i>
-                                  </a>
-                                  <span className="badge-pill primary">{r.status}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* RIGHT COLUMN: GEMINI IMAGE GENERATION STUDIO + PHOTO VISION + KNOWLEDGE BASE */}
-                      <div>
-                        {/* Gemini Image Generation Studio Card */}
-                        <div className="card">
-                          <div className="card-title">
-                            <span>
-                              <i className="ri-sparkling-2-line" style={{ color: "var(--primary)" }}></i> Gemini 이벤트 이미지 생성 스튜디오
-                            </span>
-                            <span className="badge-pill primary">gemini-3.1-flash-image</span>
-                          </div>
-
-                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
-                            {IMAGE_STYLE_PRESETS.map(st => (
-                              <button
-                                key={st.id}
-                                type="button"
-                                className={`ds-btn sm ${imgStyle === st.id ? "soft" : "ghost"}`}
-                                onClick={() => setImgStyle(st.id)}
-                              >
-                                <i className={st.icon}></i>
-                                <span>{st.label}</span>
-                              </button>
-                            ))}
-                          </div>
-
-                          <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-                            <input
-                              type="text"
-                              className="modern-input"
-                              style={{ flex: 1 }}
-                              value={imgPrompt}
-                              onChange={e => setImgPrompt(e.target.value)}
-                              placeholder="생성할 이벤트 포스터/배너 프롬프트 입력..."
-                            />
-                            <select
-                              className="modern-input"
-                              value={imgRatio}
-                              onChange={e => setImgRatio(e.target.value)}
-                              style={{ width: "86px" }}
-                            >
-                              <option value="16:9">16:9</option>
-                              <option value="1:1">1:1</option>
-                              <option value="4:3">4:3</option>
-                            </select>
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            <div style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-                              {imgStatusMsg || "배너 이미지를 생성하거나 WYSIWYG 본문에 바로 삽입할 수 있습니다."}
-                            </div>
-                            <div style={{ display: "flex", gap: "6px" }}>
-                              <button
-                                type="button"
-                                className="ds-btn outline sm"
-                                onClick={() => handleGenerateEventImage(selectedEvent, false)}
-                                disabled={imgGenerating}
-                              >
-                                <i className="ri-image-add-line"></i>
-                                <span>{imgGenerating ? "생성 중..." : "배너 생성"}</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="ds-btn sm"
-                                onClick={() => handleGenerateEventImage(selectedEvent, true)}
-                                disabled={imgGenerating}
-                              >
-                                <i className="ri-magic-line"></i>
-                                <span>생성 후 WYSIWYG 삽입</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {(selectedEvent.generated_images || []).length > 0 && (
-                            <div className="gemini-image-grid">
-                              {selectedEvent.generated_images.map(img => (
-                                <div key={img.image_id} className="gemini-image-card">
-                                  <img src={img.url} alt={img.prompt} />
-                                  <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                                    <div style={{ fontSize: "11px", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {img.prompt}
-                                    </div>
-                                    <div style={{ display: "flex", gap: "4px" }}>
-                                      <button
-                                        type="button"
-                                        className="ds-btn ghost sm"
-                                        style={{ flex: 1, padding: "4px 6px" }}
-                                        onClick={() => handleSaveWysiwyg(selectedEvent, img.url)}
-                                      >
-                                        <i className="ri-landscape-line"></i> 배너
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="ds-btn soft sm"
-                                        style={{ flex: 1, padding: "4px 6px" }}
-                                        onClick={() => {
-                                          insertHtmlIntoWysiwyg(
-                                            `<figure style="margin:12px 0;"><img src="${img.url}" alt="${img.prompt}" style="width:100%;max-height:280px;object-fit:cover;border-radius:10px;" /></figure>`
-                                          );
-                                        }}
-                                      >
-                                        <i className="ri-add-box-line"></i> 본문삽입
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Event Photo Gemini Vision Headcount Card */}
-                        <div className="card">
-                          <div className="card-title">
-                            <span><i className="ri-camera-lens-line" style={{ color: "var(--primary)" }}></i> 현장 사진 Vision 인원 분석</span>
-                            <span className="badge-pill">{selectedEvent.tracked_photo_attendees || 0}명 감지</span>
-                          </div>
-                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                            <input
-                              type="text"
-                              className="modern-input"
-                              style={{ flex: 1 }}
-                              value={photoCaption}
-                              onChange={e => setPhotoCaption(e.target.value)}
-                              placeholder="사진 캡션 (예: 키노트 홀 전경)"
-                            />
-                            <label className="ds-btn outline" style={{ cursor: photoUploading ? "wait" : "pointer", margin: 0 }}>
-                              <i className="ri-upload-2-line"></i>
-                              <span>{photoUploading ? "분석 중..." : "업로드"}</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                style={{ display: "none" }}
-                                disabled={photoUploading}
-                                onChange={e => handlePhotoUpload(e, selectedEvent.event_id)}
-                              />
-                            </label>
-                          </div>
-
-                          {(selectedEvent.photos || []).length > 0 && (
-                            <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                              {selectedEvent.photos.map(p => (
-                                <div key={p.photo_id} style={{ border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", background: "var(--bg)" }}>
-                                  <img src={p.url} alt={p.caption} style={{ width: "100%", height: "96px", objectFit: "cover" }} />
-                                  <div style={{ padding: "8px", fontSize: "11.5px" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                      <strong>{p.caption}</strong>
-                                      <span className="badge-pill primary">{p.detected_headcount}명</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Knowledge Base & Checklist */}
-                        <div className="card">
-                          <div className="card-title">
-                            <span><i className="ri-book-read-line" style={{ color: "var(--primary)" }}></i> 행사 지식 베이스 ({(selectedEvent.knowledge_base || []).length})</span>
-                          </div>
-                          <form onSubmit={e => handleKbSubmit(e, selectedEvent.event_id)} style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-                            <input
-                              type="text"
-                              className="modern-input"
-                              style={{ flex: 1 }}
-                              value={kbForm.title}
-                              onChange={e => setKbForm({ ...kbForm, title: e.target.value })}
-                              placeholder="항목명"
-                            />
-                            <input
-                              type="text"
-                              className="modern-input"
-                              style={{ flex: 1.5 }}
-                              value={kbForm.content}
-                              onChange={e => setKbForm({ ...kbForm, content: e.target.value })}
-                              placeholder="내용"
-                            />
-                            <button type="submit" className="ds-btn outline">추가</button>
-                          </form>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "170px", overflowY: "auto" }}>
-                            {(selectedEvent.knowledge_base || []).map(kb => (
-                              <div key={kb.kb_id} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px 10px", fontSize: "12px" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                  <strong>{kb.title}</strong>
-                                  <span className="badge-pill">{kb.category}</span>
-                                </div>
-                                <div style={{ color: "var(--text-secondary)", marginTop: "3px" }}>{kb.content}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 3: EMAIL DESIGN SYSTEM & GOOGLE FORM SYNC STUDIO */}
-            {activeTab === "ops" && (
-              <div className="grid-2">
-                <div>
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-mail-send-line" style={{ color: "var(--primary)" }}></i> 이메일 디자인 시스템 프리뷰</span>
-                      <div className="workspace-dock">
-                        <button className="ds-btn sm" onClick={() => executeAdkWorkflowInChat("step2")} disabled={chatLoading}>
-                          <i className="ri-send-plane-fill"></i> Gmail 발송
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
-                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                        {[
-                          { id: "outreach", label: "섭외 초청장", icon: "ri-mail-star-line" },
-                          { id: "onboarding_invite", label: "Form·Calendar 초대", icon: "ri-calendar-check-line" },
-                          { id: "inquiry_reply", label: "지식베이스 회신", icon: "ri-reply-line" },
-                          { id: "delegation", label: "운영진 딜리게이션", icon: "ri-share-forward-line" }
-                        ].map(tab => (
-                          <button
-                            key={tab.id}
-                            className={`ds-btn sm ${emailPreviewType === tab.id ? "" : "outline"}`}
-                            onClick={() => setEmailPreviewType(tab.id)}
-                          >
-                            <i className={tab.icon}></i>
-                            <span>{tab.label}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      <div style={{ display: "flex", gap: "4px" }}>
-                        <button
-                          className={`ds-btn sm ${emailPreviewSpeaker === 1 ? "mono" : "outline"}`}
-                          onClick={() => setEmailPreviewSpeaker(1)}
-                        >
-                          한성민 (AI GDE)
-                        </button>
-                        <button
-                          className={`ds-btn sm ${emailPreviewSpeaker === 2 ? "mono" : "outline"}`}
-                          onClick={() => setEmailPreviewSpeaker(2)}
-                        >
-                          박제창 (Flutter GDE)
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px 12px", marginBottom: "10px", fontSize: "12px" }}>
-                      <b>제목:</b> {emailPreviewSubject}
-                    </div>
-
-                    <iframe
-                      title="Genmunity Email Design Preview"
-                      className="email-preview-frame"
-                      srcDoc={emailPreviewHtml}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-survey-line" style={{ color: "var(--primary)" }}></i> Google Form 응답 & 상태 동기화</span>
-                      <div className="workspace-dock">
-                        {readiness.latest_form?.primary_form_url && (
-                          <a href={readiness.latest_form.primary_form_url} target="_blank" rel="noreferrer" className="ws-link-btn">
-                            <i className="ri-survey-line"></i> Form 열기
-                          </a>
-                        )}
-                        <button className="ds-btn outline sm" onClick={() => executeAdkWorkflowInChat("step5")}>
-                          <i className="ri-refresh-line"></i> API 동기화
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "10px", padding: "12px", marginBottom: "12px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
-                        <select
-                          className="modern-input"
-                          value={quickFormSpeaker}
-                          onChange={e => {
-                            const em = e.target.value;
-                            setQuickFormSpeaker(em);
-                            if (em.includes("sniper45han")) {
-                              setQuickFormTshirt("XL (105)");
-                              setQuickFormVehicle("123가 4568");
-                              setQuickFormTopic("Google ADK & Gemini 4.0 Argon 멀티 에이전트 핸즈온");
-                            } else {
-                              setQuickFormTshirt("L (100)");
-                              setQuickFormVehicle("45나 8890");
-                              setQuickFormTopic("Flutter & Gemini 크로스플랫폼 AI 앱 핸즈온");
-                            }
-                          }}
-                        >
-                          <option value="sniper45han@gmail.com">한성민 (sniper45han@gmail.com)</option>
-                          <option value="aristojeff@gmail.com">박제창 (aristojeff@gmail.com)</option>
-                        </select>
-                        <input
-                          type="text"
-                          className="modern-input"
-                          value={quickFormPhone}
-                          onChange={e => setQuickFormPhone(e.target.value)}
-                          placeholder="연락처"
-                        />
-                        <select
-                          className="modern-input"
-                          value={quickFormTshirt}
-                          onChange={e => setQuickFormTshirt(e.target.value)}
-                        >
-                          <option value="S (90)">티셔츠: S (90)</option>
-                          <option value="M (95)">티셔츠: M (95)</option>
-                          <option value="L (100)">티셔츠: L (100)</option>
-                          <option value="XL (105)">티셔츠: XL (105)</option>
-                          <option value="2XL (110)">티셔츠: 2XL (110)</option>
-                        </select>
-                        <input
-                          type="text"
-                          className="modern-input"
-                          value={quickFormVehicle}
-                          onChange={e => setQuickFormVehicle(e.target.value)}
-                          placeholder="차량 번호"
-                        />
-                      </div>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <input
-                          type="text"
-                          className="modern-input"
-                          style={{ flex: 1 }}
-                          value={quickFormTopic}
-                          onChange={e => setQuickFormTopic(e.target.value)}
-                          placeholder="세션 제목"
-                        />
-                        <button className="ds-btn" onClick={() => handleQuickFormSubmit()} disabled={syncingForm}>
-                          <i className="ri-check-double-line"></i> 동기화
-                        </button>
-                      </div>
-                    </div>
-
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>연사</th>
-                          <th>연락처</th>
-                          <th>티셔츠</th>
-                          <th>차량</th>
-                          <th>세션</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(readiness.form_submissions || []).length === 0 ? (
-                          <tr>
-                            <td colSpan="5" style={{ textAlign: "center", color: "var(--text-muted)", padding: "12px" }}>
-                              수신된 응답이 없습니다.
-                            </td>
-                          </tr>
-                        ) : (
-                          (readiness.form_submissions || []).map((sub, i) => (
-                            <tr key={i}>
-                              <td><strong>{sub.speaker_name}</strong></td>
-                              <td>{sub.phone}</td>
-                              <td><span className="badge-pill primary">{sub.tshirt_size}</span></td>
-                              <td><span className="badge-pill">{sub.vehicle_number}</span></td>
-                              <td>{sub.session_title}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Pub/Sub -> Cloud Run Inquiry Auto-Reply & Organizer Delegation */}
-                  <div className="card">
-                    <div className="card-title">
-                      <span><i className="ri-Customer-service-2-line" style={{ color: "var(--primary)" }}></i> Pub/Sub 수신 문의 자동 회신 & 딜리게이션</span>
-                    </div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
-                      <button
-                        className="ds-btn outline"
-                        onClick={async () => {
-                          const r = await fetch("/api/admin/inquiry/process", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              sender_email: "attendee.kim@gdg.kr",
-                              sender_name: "김철수 참가자",
-                              subject: "[DevFest 2026 문의] 행사 장소와 무료 주차 안내",
-                              inquiry_body: "DevFest 2026 핸즈온 행사 장소와 무료 주차 지원 여부가 궁금합니다.",
-                              event_id: "devfest-2026-seoul"
-                            })
-                          });
-                          setInquiryResult(await r.json());
-                          fetchState();
-                        }}
-                      >
-                        <i className="ri-reply-all-line"></i> 지식베이스 자동 회신 테스트
-                      </button>
-
-                      <button
-                        className="ds-btn mono"
-                        onClick={async () => {
-                          const r = await fetch("/api/admin/inquiry/process", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              sender_email: "sponsor.director@techcorp.kr",
-                              sender_name: "박이사 (후원사)",
-                              subject: "[특례 문의] 단독 스폰서십 NDA 계약 및 야간 대관 연장 요청",
-                              inquiry_body: "맞춤형 스폰서십 NDA 체결 및 야간 대관 연장 특례 승인을 요청합니다.",
-                              event_id: "devfest-2026-seoul"
-                            })
-                          });
-                          setInquiryResult(await r.json());
-                          fetchState();
-                        }}
-                      >
-                        <i className="ri-share-forward-line"></i> 운영진 딜리게이션 테스트
-                      </button>
-                    </div>
-
-                    {inquiryResult && (
-                      <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px", fontSize: "12px" }}>
-                        <div style={{ fontWeight: 700, color: "var(--primary)", marginBottom: "3px" }}>
-                          {inquiryResult.is_within_knowledge_base ? "자동 회신 완료 (auto_replied_from_kb)" : "운영진 딜리게이션 완료 (delegated_to_organizers)"}
-                        </div>
-                        <div style={{ color: "var(--text-secondary)" }}>{inquiryResult.reason}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: AUTHENTICATED GOOGLE COMMUNITYHUB LIVE SCRAPER */}
-            {activeTab === "community_hub" && (
-              <div>
-                <div className="card">
-                  <div className="card-title">
-                    <div>
-                      <span className="badge-pill primary" style={{ marginBottom: "6px" }}>
-                        <i className="ri-shield-check-line"></i> Cookie Auth ({communityHub.cookie_count || 19} cookies)
-                      </span>
-                      <h2 style={{ margin: "4px 0", fontSize: "19px", fontWeight: 800 }}>
-                        Google CommunityHub 라이브 데이터
-                      </h2>
-                    </div>
-                    <div className="workspace-dock">
-                      <a href={communityHub.hub_url || "https://developers.google.com/community/community-hub"} target="_blank" rel="noreferrer" className="ws-link-btn">
-                        <i className="ri-compass-3-line"></i> CommunityHub 원문
-                      </a>
-                      <button className="ds-btn" onClick={handleCrawlCommunityHub} disabled={crawlingHub}>
-                        <i className="ri-refresh-line"></i> {crawlingHub ? "수집 중..." : "실시간 재수집"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid-2" style={{ marginTop: "10px" }}>
-                    <div style={{ background: "var(--primary-soft)", border: "1px solid var(--primary-border)", borderRadius: "10px", padding: "14px" }}>
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase" }}>
-                        DevFest 2026 Official Theme
-                      </div>
-                      <div style={{ fontSize: "16px", fontWeight: 800, color: "var(--text)", margin: "6px 0" }}>
-                        "{communityHub.devfest_2026_highlights?.theme || "Build, secure, scale: Developers and builders in the agentic era"}"
-                      </div>
-                      <div style={{ fontSize: "12.5px", color: "var(--text-secondary)" }}>
-                        {communityHub.devfest_2026_highlights?.key_shift}
-                      </div>
-                    </div>
-
-                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "10px", padding: "14px" }}>
-                      <div style={{ fontSize: "12.5px", fontWeight: 700, marginBottom: "8px" }}>
-                        Highlighted Topics
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {(communityHub.devfest_2026_highlights?.highlighted_topics || []).map((topic, idx) => (
-                          <span key={idx} className="badge-pill primary">{topic}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid-2">
-                  {(communityHub.pages || []).map((pg, idx) => (
-                    <div key={idx} className="card">
-                      <div className="card-title">
-                        <span><i className="ri-pages-line" style={{ color: "var(--primary)" }}></i> {pg.title || pg.key}</span>
-                        <a href={pg.url} target="_blank" rel="noreferrer" className="ws-link-btn" style={{ padding: "4px 9px", fontSize: "11.5px" }}>
-                          <i className="ri-external-link-line"></i> 페이지 열기
-                        </a>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                        {(pg.headings || []).slice(0, 5).map((h, i) => (
-                          <div key={i} style={{ fontSize: "12px", padding: "6px 10px", background: "var(--bg)", borderRadius: "7px", border: "1px solid var(--border)" }}>
-                            • {h}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 5: A2A & MCP PROTOCOL HUB */}
-            {activeTab === "a2a_mcp" && (
-              <div className="grid-2">
-                <div className="card">
-                  <div className="card-title">
-                    <span><i className="ri-share-forward-box-line" style={{ color: "var(--primary)" }}></i> Google ADK A2A Protocol</span>
-                    <button
-                      className="ds-btn outline sm"
-                      onClick={async () => {
-                        const r = await fetch("/.well-known/agent-card.json");
-                        setA2aCard(await r.json());
-                      }}
-                    >
-                      <i className="ri-file-code-line"></i> AgentCard 조회
-                    </button>
-                  </div>
-                  {a2aCard && (
-                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px", fontSize: "12px" }}>
-                      <div><b>{a2aCard.name}</b> ({a2aCard.version})</div>
-                      <div style={{ marginTop: "4px", color: "var(--text-secondary)" }}>{a2aCard.description}</div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="card">
-                  <div className="card-title">
-                    <span><i className="ri-plug-line" style={{ color: "var(--primary)" }}></i> MCP Tools ({(appState?.mcp_tools || []).length}개)</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "340px", overflowY: "auto" }}>
-                    {(appState?.mcp_tools || []).map(t => (
-                      <div key={t.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "var(--bg)", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "12px" }}>
-                        <div>
-                          <strong style={{ color: "var(--primary)" }}>{t.name}</strong>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "11.5px" }}>{t.description}</div>
-                        </div>
-                        <button
-                          className="ds-btn outline sm"
-                          onClick={async () => {
-                            const r = await fetch("/mcp", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                jsonrpc: "2.0",
-                                id: 1,
-                                method: "tools/call",
-                                params: { name: t.name, arguments: { query: "DevFest 핸즈온 스피커" } }
-                              })
-                            });
-                            setMcpOutput(await r.json());
-                          }}
-                        >
-                          <i className="ri-play-line"></i> 실행
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  {mcpOutput && (
-                    <div style={{ marginTop: "8px", padding: "8px 10px", background: "var(--primary-soft)", border: "1px solid var(--primary-border)", borderRadius: "8px", fontSize: "12px", color: "var(--primary)" }}>
-                      <b>MCP 응답 완료</b> (isError: {String(mcpOutput.result?.isError)})
-                    </div>
-                  )}
-                </div>
-              </div>
+              />
             )}
           </main>
         </div>
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById("root"));
-    root.render(<App />);
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
   </script>
 </body>
-</html>"""
+</html>
+"""

@@ -259,29 +259,17 @@ class DataCrawler:
         return result
 
     def fetch_gdg_korea_sheet_notice(self) -> Dict[str, Any]:
-        """Fetch live public notice/rows from the GDG Korea Organizers Google Sheet."""
-        csv_url = f"https://docs.google.com/spreadsheets/d/{GDG_KOREA_SHEET_ID}/export?format=csv"
-        try:
-            resp = requests.get(csv_url, timeout=6)
-            if resp.status_code == 200 and resp.text.strip():
-                self._sheet_cache = resp.text.strip()
-                return {
-                    "status": "live_fetched",
-                    "sheet_url": GDG_KOREA_SHEET_URL,
-                    "content": self._sheet_cache,
-                }
-        except Exception as exc:
-            logger.warning(f"Failed to fetch live GDG Sheet CSV: {exc}")
-
-        fallback = (
+        """Return privacy-filtered GDG Korea notice without exposing external sheet PII."""
+        notice = (
             "Google for Developers - 이 시트는 구글 개발자 커뮤니티 간의 원활한 연락, 소통, "
             "그리고 연합 이벤트 등을 위해 내부적으로 공유되는 시트입니다. "
             "타 GDG운영진/GDE 에게 연락할 때는 정중하게 예의를 갖추고 챕터 소개 및 자기소개를 포함해주세요."
         )
+        self._sheet_cache = notice
         return {
-            "status": "cached_fallback",
+            "status": "privacy_filtered",
             "sheet_url": GDG_KOREA_SHEET_URL,
-            "content": self._sheet_cache or fallback,
+            "content": notice,
         }
 
     def crawl_speakers(self, query: str = "") -> List[Dict[str, Any]]:
@@ -358,7 +346,7 @@ class DataCrawler:
         messages = [
             {
                 "channel": "#devfest-2026-organizers",
-                "author": "권나현 (Google Dev Ecosystem Community Manager)",
+                "author": "Google Dev Ecosystem Community Manager",
                 "timestamp": "2026-10-12 10:15 KST",
                 "text": (
                     "안녕하세요 운영진 여러분! 올해 DevFest 2026 시즌은 12월 31일까지 진행됩니다. "

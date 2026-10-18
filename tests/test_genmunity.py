@@ -92,8 +92,27 @@ def test_fastapi_dashboard_and_health():
     assert logo_resp.status_code == 200
     assert logo_resp.headers["content-type"] == "image/png"
 
+    fav_png_resp = client.get("/favicon.png")
+    assert fav_png_resp.status_code == 200
+    assert fav_png_resp.headers["content-type"] == "image/png"
+    import io
+    from PIL import Image
+
+    fav_img = Image.open(io.BytesIO(fav_png_resp.content))
+    assert fav_img.width == fav_img.height == 256
+    # Verify top/bottom padding is transparent (contained, not stretched vertically)
+    bbox = fav_img.getbbox()
+    assert bbox is not None
+    assert bbox[1] > 0 and bbox[3] < 256
+
+    fav_ico_resp = client.get("/favicon.ico")
+    assert fav_ico_resp.status_code == 200
+
     dash = client.get("/")
     assert dash.status_code == 200
+    assert 'href="/favicon.png"' in dash.text
+    assert 'href="/favicon.ico"' in dash.text
+    assert "object-contain" in dash.text
     assert "Genmunity" in dash.text
     assert "devstar5011@gcplab.me" in dash.text
     assert "sniper45han@gmail.com" in dash.text
@@ -483,4 +502,99 @@ def test_streaming_chat_image_gen_and_mcp_batch():
         assert '"type": "done"' in batch_body
 
 
+def test_event_detail_wysiwyg_image_gen_and_workspace_links():
+    # 1. Verify Event Detail includes rsvp_content_html and workspace_links (Gmail, Calendar, Form, Sheets)
+    ev_resp = client.get("/api/events/devfest-2026-seoul")
+    assert ev_resp.status_code == 200
+    ev = ev_resp.json()
+    assert "rsvp_content_html" in ev
+    assert "workspace_links" in ev
+    ws_links = ev["workspace_links"]
+    assert "mail.google.com" in ws_links["gmail_inbox_url"]
+    assert "calendar.google.com" in ws_links["calendar_url"]
+    assert "docs.google.com/forms" in ws_links["form_url"]
+    assert "docs.google.com/spreadsheets" in ws_links["sheet_url"]
+
+    # 2. Save WYSIWYG rich HTML content on Event Detail RSVP
+    wysiwyg_resp = client.post(
+        "/api/events/devfest-2026-seoul/wysiwyg",
+        json={
+            "rsvp_content_html": "<h2>DevFest 2026 WYSIWYG Updated</h2><p>Custom RSVP Rich Content</p>",
+        },
+    )
+    assert wysiwyg_resp.status_code == 200
+    assert wysiwyg_resp.json()["status"] == "updated"
+    assert "DevFest 2026 WYSIWYG Updated" in wysiwyg_resp.json()["event"]["rsvp_content_html"]
+
+    # 3. Generate Event Image via Gemini Image Studio endpoint
+    img_resp = client.post(
+        "/api/events/devfest-2026-seoul/generate-image",
+        json={
+            "prompt": "Minimalist royal blue and monochrome tech conference poster",
+            "style": "Modern Minimalist Tech Conference Poster",
+            "aspect_ratio": "16:9",
+            "set_as_banner": True,
+        },
+    )
+    assert img_resp.status_code == 200
+    img_data = img_resp.json()
+    assert img_data["status"] == "generated"
+    assert img_data["image"]["url"].startswith("/api/uploads/")
+    assert img_data["event"]["banner_url"] == img_data["image"]["url"]
+
+
+def test_gdg_gde_directory_allowlist_and_pii_removal():
+    from genmunity_agent.services.gdg_directory import (
+        GDG_KOREA_GDE_DIRECTORY,
+        GDG_KOREA_CHAPTER_ORGANIZERS,
+        ALLOWED_GDG_GDE_EMAILS,
+        validate_speaker_email_recipient,
+        search_gdg_gde_directory,
+    )
+
+    expected_emails = [
+        "inureyes@gmail.com",
+        "sniper45han@gmail.com",
+        "aristojeff@gmail.com",
+        "jeongjoo.front@gmail.com",
+        "jonghoon.1738@gmail.com",
+        "132262b@gmail.com",
+        "toosky650@gmail.com",
+        "jinnya8166@gmail.com",
+        "dntndus9611@gmail.com",
+        "liza09201025@gmail.com",
+        "noa9925@gmail.com",
+        "sgd0947@gmail.com",
+        "a24746440@gmail.com",
+        "bigdarkgold@gmail.com",
+        "bianbbc87@gmail.com",
+        "jqyu.lee@gmail.com",
+        "kasseyy719@gmail.com",
+        "chochoq.dev@gmail.com",
+        "andkspark@gmail.com",
+        "vnycall74@naver.com",
+        "dayeon.dev@gmail.com",
+        "cdypro0510@gmail.com",
+        "nana.nykim@gmail.com",
+    ]
+    assert ALLOWED_GDG_GDE_EMAILS == expected_emails
+    assert len(GDG_KOREA_GDE_DIRECTORY) == 3
+    assert len(GDG_KOREA_CHAPTER_ORGANIZERS) == 20
+
+    for entry in GDG_KOREA_GDE_DIRECTORY + GDG_KOREA_CHAPTER_ORGANIZERS:
+        if entry["email"] in ("sniper45han@gmail.com", "aristojeff@gmail.com"):
+            assert entry["name"] in ("한성민", "박제창")
+        else:
+            assert entry["name"] == ""
+            assert entry["name_en"] == ""
+            assert entry["slack_id"] == ""
+            assert entry["affiliation"] == ""
+
+    for email in expected_emails:
+        assert validate_speaker_email_recipient(email)["allowed"] is True
+    assert validate_speaker_email_recipient("unauthorized@gmail.com")["allowed"] is False
+
+    search_res = search_gdg_gde_directory()
+    assert search_res["total_gde_count"] == 3
+    assert search_res["total_gdg_chapter_members"] == 20
 

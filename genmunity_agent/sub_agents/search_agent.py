@@ -197,9 +197,9 @@ search_agent = Agent(
 Data Crawler가 인증 세션 쿠키로 수집한 **Google CommunityHub (`https://developers.google.com/community/community-hub`)**, GDG/GDE Slack, Advocu, 국내 GDG 챕터 운영진 및 GDE 디렉토리, 그리고 **행사 지식 베이스(Event Knowledge Base, Google Form 연사 온보딩 응답 현황, Gemini Vision 참석자 수 통계)** 데이터를 기반으로 질문에 정확하고 간결하게 한국어로 답변하세요.
 
 [개인정보 보호 및 발표자 안내 이메일 대상자 원칙]
-- GDG Korea 챕터 운영진 및 GDE 디렉토리의 개인정보(이메일 등)를 엄격히 보호하세요.
-- 일반 목록 조회 시 비매칭 인원의 이메일은 마스킹(`***`)된 상태로만 안내하세요.
-- 발표자 초청/안내 이메일 발송 대상은 반드시 **GDE(Google Developer Expert)** 이거나 **완전히 매칭(Exact Match)되는 GDG 대상자**로만 한정하세요.
+- GDG Korea 챕터 및 GDE 디렉토리는 지정된 23개 이메일(1팀~6팀)로만 한정하여 사용합니다.
+- 개발자(`sniper45han@gmail.com` 한성민, `aristojeff@gmail.com` 박제창 / Dreamwalker) 외 나머지 21명의 이름·소속·슬랙ID 등 개인정보는 모두 제거되어 이메일과 GDG/GDE·챕터 구분만 유지됩니다.
+- 발표자 초청/안내 이메일 발송 대상은 반드시 허용된 23개 GDG/GDE 이메일 목록 내 대상자로만 한정하세요.
 
 핵심 역량(Tools):
 1. `rag_search_tool` (RAGSearch):
@@ -208,7 +208,7 @@ Data Crawler가 인증 세션 쿠키로 수집한 **Google CommunityHub (`https:
      * **두번째 연사자**: **박제창** (`aristojeff@gmail.com`) — **Flutter GDE** (Flutter & Gemini 크로스플랫폼 AI 핸즈온)
    - "올해 DevFest 행사는 언제까지?" -> 2026년 9월 1일 ~ 12월 31일 (결과 보고서 및 정산 마감 12월 31일)
    - "DevFest 지원가능한 예산은?" -> 규모별 $1,500 ~ $5,000 (한화 약 200만 원 ~ 680만 원) + GDE 초청 여비 지원 정책 안내
-2. `search_gdg_gde_directory_tool` (GDG/GDE Directory Search): 국내 11개 GDG 챕터 운영진 및 6개 분야 GDE(Android, AI, Cloud, Go, Firebase, Flutter) 검색 (개인정보 보호 마스킹 자동 적용)
+2. `search_gdg_gde_directory_tool` (GDG/GDE Directory Search): 허용된 23개 GDG/GDE 이메일(1팀~6팀, GDE 3명 · GDG 20명) 검색
 3. `crawl_community_hub_tool` (CommunityHub Live Crawler): `https://developers.google.com/community/community-hub` 실시간 스크래핑 결과 조회
 4. `search_event_knowledge_base_tool` (Event Knowledge Base): 이벤트별 지식 베이스 문서, 연사 Google Form 응답, 업로드된 현장 사진의 Gemini Vision 참석자 수 카운팅 통계 및 RSVP 현황 검색
 5. `slack_search_tool` (SlackSearch): GDG/GDE 슬랙 채널 내 연사 가용성 및 운영진 논의 검색

@@ -82,6 +82,28 @@ logger = logging.getLogger("genmunity.app")
 
 BASE_DIR = Path(__file__).resolve().parent
 LOGO_PATH = BASE_DIR / "assets" / "logo.png"
+FAVICON_PNG_PATH = BASE_DIR / "assets" / "favicon.png"
+FAVICON_ICO_PATH = BASE_DIR / "assets" / "favicon.ico"
+
+
+def _ensure_contained_favicon_assets() -> None:
+    """Ensure 1:1 square contained favicon.png and favicon.ico exist without stretching logo.png."""
+    if FAVICON_PNG_PATH.exists() and FAVICON_ICO_PATH.exists():
+        return
+    try:
+        from PIL import Image, ImageOps
+
+        im = Image.open(LOGO_PATH).convert("RGBA")
+        size = 256
+        contained = ImageOps.contain(im, (size, size), method=Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        offset = ((size - contained.width) // 2, (size - contained.height) // 2)
+        canvas.paste(contained, offset, contained)
+        FAVICON_PNG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        canvas.save(FAVICON_PNG_PATH, format="PNG")
+        canvas.save(FAVICON_ICO_PATH, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+    except Exception as exc:
+        logger.warning(f"Failed to generate contained favicon assets: {exc}")
 
 
 async def _inbox_watcher_loop() -> None:
@@ -124,6 +146,23 @@ app = FastAPI(
 @app.get("/assets/logo.png")
 def serve_logo():
     return FileResponse(LOGO_PATH, media_type="image/png")
+
+
+@app.get("/favicon.png")
+@app.get("/assets/favicon.png")
+def serve_favicon_png():
+    _ensure_contained_favicon_assets()
+    target = FAVICON_PNG_PATH if FAVICON_PNG_PATH.exists() else LOGO_PATH
+    return FileResponse(target, media_type="image/png")
+
+
+@app.get("/favicon.ico")
+def serve_favicon_ico():
+    _ensure_contained_favicon_assets()
+    if FAVICON_ICO_PATH.exists():
+        return FileResponse(FAVICON_ICO_PATH, media_type="image/x-icon")
+    target = FAVICON_PNG_PATH if FAVICON_PNG_PATH.exists() else LOGO_PATH
+    return FileResponse(target, media_type="image/png")
 
 
 @app.get("/api/uploads/{filename}")
@@ -209,7 +248,8 @@ class EventUpsertRequest(BaseModel):
 
 
 class EventWysiwygRequest(BaseModel):
-    rsvp_content_html: str
+    rsvp_content_html: Optional[str] = None
+    wysiwyg_html: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
     banner_url: Optional[str] = None
@@ -314,7 +354,7 @@ def api_get_event(event_id: str):
     ev = get_event_by_id(event_id)
     if not ev:
         raise HTTPException(status_code=404, detail="Event not found")
-    return {"event": ev}
+    return {**ev, "event": ev}
 
 
 @app.post("/api/events")
@@ -339,7 +379,7 @@ def api_create_or_modify_event(req: EventUpsertRequest):
 def api_save_event_wysiwyg(event_id: str, req: EventWysiwygRequest):
     return save_event_wysiwyg_content(
         event_id=event_id,
-        rsvp_content_html=req.rsvp_content_html,
+        rsvp_content_html=req.rsvp_content_html if req.rsvp_content_html is not None else (req.wysiwyg_html or ""),
         title=req.title,
         description=req.description,
         banner_url=req.banner_url,
@@ -1233,7 +1273,7 @@ def submit_speaker_onboarding_form(
     return HTMLResponse(
         content=f"""<!DOCTYPE html>
 <html lang="ko">
-<head><meta charset="UTF-8"><title>제출 완료 — Genmunity</title></head>
+<head><meta charset="UTF-8"><title>제출 완료 — Genmunity</title><link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" /><link rel="icon" type="image/x-icon" href="/favicon.ico" /></head>
 <body style="font-family: 'Plus Jakarta Sans', 'Pretendard', sans-serif; background: #f8fafc; padding: 48px 16px;">
   <div style="max-width: 580px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(15,23,42,0.06);">
     <div style="height: 6px; background: linear-gradient(90deg, #4285F4 0%, #34A853 35%, #FBBC05 70%, #EA4335 100%);"></div>
@@ -1262,5 +1302,8 @@ def submit_speaker_onboarding_form(
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     """Render the Genmunity Operations Console Web Application."""
-    from genmunity_agent.ui_template import DASHBOARD_HTML
-    return HTMLResponse(content=DASHBOARD_HTML)
+    import importlib
+    import genmunity_agent.ui_template as _ui_template
+    importlib.reload(_ui_template)
+    return HTMLResponse(content=_ui_template.DASHBOARD_HTML)
+
