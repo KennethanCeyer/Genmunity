@@ -77,6 +77,45 @@ def find_credentials_file() -> Optional[Path]:
     return None
 
 
+def load_oauth_client_config() -> Dict[str, Any]:
+    """Load OAuth 2.0 client configuration from environment variables or credentials.json."""
+    client_id = os.environ.get(
+        "GOOGLE_OAUTH_CLIENT_ID",
+        "858263435030-sd5l2pvi8edkngnm8ndb7nvqpbak0rkj.apps.googleusercontent.com",
+    )
+    client_secret = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
+
+    creds_file = find_credentials_file()
+    if creds_file:
+        try:
+            with open(creds_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "installed" in data or "web" in data:
+                return data
+        except Exception as exc:
+            logger.warning(f"Failed to parse {creds_file}: {exc}")
+
+    if not client_secret:
+        raise FileNotFoundError(
+            "OAuth client credentials not found in credentials.json or GOOGLE_OAUTH_CLIENT_SECRET."
+        )
+
+    return {
+        "installed": {
+            "client_id": client_id,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": client_secret,
+            "redirect_uris": [
+                "http://localhost",
+                "http://localhost:8080",
+                "http://localhost:8085/",
+            ],
+        }
+    }
+
+
 def sync_live_gmail_profile() -> Dict[str, Any]:
     """Check the currently active token.json and synchronize admin registry metadata."""
     reg = load_admin_registry()
@@ -110,21 +149,17 @@ def register_mail_admin_via_oauth(
     register_pubsub_watch: bool = True,
     sync_secret_manager: bool = True,
     open_browser: bool = True,
+    port: int = 0,
 ) -> Dict[str, Any]:
     """
     Launch OAuth 2.0 InstalledAppFlow for the Mail Administrator account (default: devstar5011@gcplab.me),
     save token.json, snapshot existing inbox message IDs so only NEW replies trigger actions,
     register Gmail API users.watch (Cloud Pub/Sub), and optionally update GCP Secret Manager.
     """
-    creds_file = find_credentials_file()
-    if not creds_file:
-        raise FileNotFoundError(
-            "OAuth client file 'credentials.json' not found in Genmunity or ~/automation."
-        )
-
-    flow = InstalledAppFlow.from_client_secrets_file(str(creds_file), DEFAULT_SCOPES)
+    client_config = load_oauth_client_config()
+    flow = InstalledAppFlow.from_client_config(client_config, DEFAULT_SCOPES)
     creds = flow.run_local_server(
-        port=0,
+        port=port,
         open_browser=open_browser,
         login_hint=target_email,
         prompt="select_account consent",
