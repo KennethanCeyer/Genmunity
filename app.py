@@ -174,15 +174,18 @@ def serve_uploaded_photo(filename: str):
 
 
 class ChatRequest(BaseModel):
-    prompt: str
+    prompt: Optional[str] = ""
+    message: Optional[str] = ""
     session_id: Optional[str] = None
+    user_id: Optional[str] = None
     event_id: Optional[str] = None
     image_mode: Optional[bool] = False
     image_style: Optional[str] = "Modern Minimal Tech"
 
 
 class MCPBatchRequest(BaseModel):
-    tools: List[Dict[str, Any]]
+    tools: Optional[List[Dict[str, Any]]] = None
+    actions: Optional[List[Dict[str, Any]]] = None
     session_id: Optional[str] = None
     event_id: Optional[str] = "devfest-2026-seoul"
 
