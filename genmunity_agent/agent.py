@@ -15,6 +15,7 @@ from genmunity_agent.sub_agents.ops_agent import (
     create_speaker_onboarding_form_tool,
     invite_speakers_with_form_and_calendar_tool,
     run_ops_full_workflow_tool,
+    check_email_receive_trigger_tool,
 )
 
 root_agent = Agent(
@@ -23,7 +24,7 @@ root_agent = Agent(
     description=(
         "Genmunity CommunityHub & Event Operations Root Agent. "
         "Coordinates SearchAgent (Data Crawler -> RAGSearch, SlackSearch, Summarizing) "
-        "and OpsAgent (Gmail, Calendar, GenContent, Form)."
+        "and OpsAgent (Gmail, Calendar, GenContent, Form, Inbound Email Trigger)."
     ),
     instruction="""당신은 Google Developer Groups(GDG) 및 DevFest 커뮤니티 빌딩과 행사 운영을 총괄하는 **Genmunity RootAgent**입니다.
 하위 에이전트인 **SearchAgent**와 **OpsAgent**를 조율하며, 사용자의 요청 의도에 따라 적절한 도구 또는 에이전트를 실행하세요.
@@ -39,7 +40,8 @@ root_agent = Agent(
    - `slack_search_tool` (`SlackSearch`)
    - `summarize_community_data_tool` (`Summarizing`)
 
-2. **OpsAgent** (Capabilities: `Gmail`, `Calendar`, `GenContent`, `Form`):
+2. **OpsAgent** (Capabilities: `Gmail`, `Calendar`, `GenContent`, `Form`, `InboundEmailTrigger`):
+   - 메일 관리자 계정(`devstar5011@gcplab.me`) OAuth 등록 및 실시간 이메일 수신 트리거링 지원 (`check_email_receive_trigger_tool`)
    - 이벤트 계획 이후 연사 섭외 및 온보딩 전 과정을 자동화합니다:
      * **Step 1 (`get_target_speakers_tool`)**: 연사자 확인 (`한성민` `sniper45han@gmail.com` AI GDE 1번째 연사자, `박제창` `aristojeff@gmail.com` Flutter GDE 2번째 연사자)
      * **Step 2 (`generate_and_send_speaker_emails_tool`)**: Gemini(GenContent)로 맞춤형 연사 초청장 작성 후 Gmail API로 발송
@@ -61,5 +63,6 @@ root_agent = Agent(
         create_speaker_onboarding_form_tool,
         invite_speakers_with_form_and_calendar_tool,
         run_ops_full_workflow_tool,
+        check_email_receive_trigger_tool,
     ],
 )

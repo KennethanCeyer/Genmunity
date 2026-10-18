@@ -803,7 +803,7 @@ JSON 스키마:
                 f"{DEVFEST_EVENT_INFO['event_name']} 연사로 함께해 주셔서 진심으로 감사드립니다!\n"
                 f"원활한 현장 운영과 연사 웰컴 키트 제작, 당일 무료 주차 등록을 위해 아래 발표자 사전 정보 등록 Form 작성을 부탁드립니다.\n\n"
                 f"■ 발표자 사전 정보 입력 Form 링크\n"
-                f"👉 {personal_form_url}\n\n"
+                f"- {personal_form_url}\n\n"
                 f"■ 필수 입력 항목 안내\n"
                 f"1. 발표자 성함: {speaker['name']}\n"
                 f"2. 이메일: {speaker['email']}\n"

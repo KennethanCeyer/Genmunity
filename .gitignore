@@ -17,6 +17,7 @@ service_account*.json
 
 # Runtime state & logs
 data/runtime_state.json
+data/mail_admin_registry.json
 *.log
 
 # OS files

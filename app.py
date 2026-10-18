@@ -1,8 +1,11 @@
+import asyncio
 import datetime
 import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from genmunity_agent.config import (
@@ -12,6 +15,14 @@ from genmunity_agent.config import (
     load_runtime_state,
     save_runtime_state,
     record_agent_trace,
+)
+from genmunity_agent.services import (
+    DEFAULT_ADMIN_EMAIL,
+    load_admin_registry,
+    save_admin_registry,
+    sync_live_gmail_profile,
+    register_mail_admin_via_oauth,
+    check_and_trigger_on_inbound_emails,
 )
 from genmunity_agent.sub_agents.ops_agent import (
     get_target_speakers_tool,
@@ -26,10 +37,48 @@ from genmunity_agent.runner import run_agent_chat
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("genmunity.app")
 
+BASE_DIR = Path(__file__).resolve().parent
+LOGO_PATH = BASE_DIR / "assets" / "logo.png"
+
+
+async def _inbox_watcher_loop() -> None:
+    """Background task that checks the registered Mail Admin INBOX for new speaker replies."""
+    while True:
+        try:
+            reg = load_admin_registry()
+            interval = max(4, int(reg.get("poll_interval_seconds", 6)))
+            if reg.get("auto_trigger_enabled", True):
+                await asyncio.to_thread(
+                    check_and_trigger_on_inbound_emails,
+                    trigger_source="background_inbox_watcher",
+                    force_process_latest=False,
+                )
+        except Exception as exc:
+            logger.debug(f"Background inbox watcher tick warning: {exc}")
+            interval = 8
+        await asyncio.sleep(interval)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_inbox_watcher_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
 app = FastAPI(
     title="Genmunity — Agentic CommunityHub & Event Ops Platform (Google ADK)",
     version="1.0.0",
+    lifespan=lifespan,
 )
+
+
+@app.get("/logo.png")
+@app.get("/assets/logo.png")
+def serve_logo():
+    return FileResponse(LOGO_PATH, media_type="image/png")
 
 
 class ChatRequest(BaseModel):
@@ -49,26 +98,96 @@ class InviteRequest(BaseModel):
     form_id: Optional[str] = ""
 
 
+class AdminOAuthRequest(BaseModel):
+    target_email: Optional[str] = DEFAULT_ADMIN_EMAIL
+    register_pubsub_watch: Optional[bool] = True
+    sync_secret_manager: Optional[bool] = True
+
+
+class TriggerCheckRequest(BaseModel):
+    force_process_latest: Optional[bool] = False
+
+
+class TriggerToggleRequest(BaseModel):
+    auto_trigger_enabled: Optional[bool] = None
+    auto_send_form_on_reply: Optional[bool] = None
+
+
 @app.get("/api/health")
 def health_check():
+    reg = load_admin_registry()
     return {
         "status": "ok",
         "project": "Genmunity",
         "framework": "Google ADK (google-adk) + Gemini + Google Workspace",
         "agents": ["RootAgent", "SearchAgent", "OpsAgent"],
         "speakers": HARDCODED_SPEAKERS,
+        "mail_admin": {
+            "target_admin_email": reg.get("target_admin_email", DEFAULT_ADMIN_EMAIL),
+            "authenticated_email": reg.get("authenticated_email"),
+            "is_target_admin_active": reg.get("is_target_admin_active"),
+            "auto_trigger_enabled": reg.get("auto_trigger_enabled", True),
+        },
     }
 
 
 @app.get("/api/state")
 def get_state():
     state = load_runtime_state()
+    admin_reg = sync_live_gmail_profile()
     return {
         "event_info": DEVFEST_EVENT_INFO,
         "gdg_korea_sheet_url": GDG_KOREA_SHEET_URL,
         "speakers": HARDCODED_SPEAKERS,
+        "mail_admin": admin_reg,
         "state": state,
     }
+
+
+@app.get("/api/admin/status")
+def get_admin_status():
+    return sync_live_gmail_profile()
+
+
+@app.post("/api/admin/oauth-login")
+async def admin_oauth_login(req: AdminOAuthRequest):
+    """
+    Launch browser OAuth 2.0 flow for the Mail Administrator account (default: devstar5011@gcplab.me)
+    and register credentials + Gmail Push Watch + real-time inbox trigger.
+    """
+    try:
+        reg = await asyncio.to_thread(
+            register_mail_admin_via_oauth,
+            target_email=req.target_email or DEFAULT_ADMIN_EMAIL,
+            register_pubsub_watch=bool(req.register_pubsub_watch),
+            sync_secret_manager=bool(req.sync_secret_manager),
+            open_browser=True,
+        )
+        return {"status": "registered", "mail_admin": reg}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/admin/trigger/check-now")
+async def admin_trigger_check_now(req: TriggerCheckRequest):
+    """Immediately check INBOX for new speaker emails and fire OpsAgent clustering & Form/Calendar invite."""
+    res = await asyncio.to_thread(
+        check_and_trigger_on_inbound_emails,
+        trigger_source="manual_dashboard_trigger",
+        force_process_latest=bool(req.force_process_latest),
+    )
+    return res
+
+
+@app.post("/api/admin/trigger/toggle")
+def admin_trigger_toggle(req: TriggerToggleRequest):
+    reg = load_admin_registry()
+    if req.auto_trigger_enabled is not None:
+        reg["auto_trigger_enabled"] = req.auto_trigger_enabled
+    if req.auto_send_form_on_reply is not None:
+        reg["auto_send_form_on_reply"] = req.auto_send_form_on_reply
+    save_admin_registry(reg)
+    return {"status": "updated", "mail_admin": reg}
 
 
 @app.post("/api/chat")
@@ -109,17 +228,23 @@ def ops_run_all(req: OutreachRequest):
 
 @app.post("/gmail-webhook")
 async def gmail_pubsub_webhook(request: Request):
-    """Cloud Pub/Sub Push endpoint that triggers automatic Gmail collection & clustering on new mail."""
+    """Cloud Pub/Sub Push endpoint that triggers automatic Gmail collection, clustering & Form/Calendar dispatch."""
     try:
         payload = await request.json()
     except Exception:
         payload = {}
     logger.info(f"Received Gmail Pub/Sub Push notification: {payload}")
+    trigger_res = await asyncio.to_thread(
+        check_and_trigger_on_inbound_emails,
+        trigger_source="cloud_pubsub_push",
+        force_process_latest=False,
+    )
     clustered = collect_and_cluster_event_emails_tool(max_results=20)
     return JSONResponse(
         {
             "status": "processed",
             "trigger": "gmail_pubsub_push",
+            "new_triggers_count": trigger_res.get("new_triggers_count", 0),
             "total_emails_collected": clustered["total_emails_collected"],
             "clusters": len(clustered["clusters"]),
         }
@@ -316,7 +441,7 @@ def submit_speaker_onboarding_form(
 <head><meta charset="UTF-8"><title>제출 완료 — Genmunity</title></head>
 <body style="font-family: sans-serif; background: #f0f4f9; padding: 48px 16px;">
   <div style="max-width: 560px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
-    <h2 style="color: #1a73e8; margin-top: 0;">✅ 발표자 사전 정보가 성공적으로 등록되었습니다!</h2>
+    <h2 style="color: #1a73e8; margin-top: 0;">발표자 사전 정보가 성공적으로 등록되었습니다!</h2>
     <p><b>성함:</b> {speaker_name}</p>
     <p><b>이메일:</b> {email}</p>
     <p><b>연락처:</b> {phone}</p>
@@ -340,6 +465,7 @@ def dashboard():
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Genmunity — CommunityHub & OpsAgent (Google ADK)</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
   <style>
     :root {
       --blue: #4285F4;
@@ -374,11 +500,11 @@ def dashboard():
       align-items: center;
       gap: 14px;
     }
-    .logo-dots {
-      display: flex;
-      gap: 5px;
+    .brand-logo {
+      height: 36px;
+      width: auto;
+      display: block;
     }
-    .dot { width: 11px; height: 11px; border-radius: 50%; }
     .brand h1 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.3px; }
     .brand span { font-size: 13px; color: var(--muted); }
     .pill-bar { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -581,22 +707,17 @@ def dashboard():
 <body>
   <header>
     <div class="brand">
-      <div class="logo-dots">
-        <div class="dot" style="background:var(--blue)"></div>
-        <div class="dot" style="background:var(--red)"></div>
-        <div class="dot" style="background:var(--yellow)"></div>
-        <div class="dot" style="background:var(--green)"></div>
-      </div>
+      <img src="/logo.png" alt="Genmunity Logo" class="brand-logo" />
       <div>
         <h1>Genmunity <span style="font-weight:500;color:#93c5fd;">CommunityHub & Event Ops Multi-Agent</span></h1>
         <span>Builderthon Live Demo • Powered by Google ADK, Gemini 2.5, Gmail, Google Forms & Calendar</span>
       </div>
     </div>
     <div class="pill-bar">
-      <span class="pill">🤖 Google ADK v2</span>
-      <span class="pill">✨ Gemini 2.5 Flash</span>
-      <span class="pill">📧 Gmail API (Real)</span>
-      <span class="pill">📋 Form & Calendar Invite</span>
+      <span class="pill">Google ADK v2</span>
+      <span class="pill">Gemini 2.5 Flash</span>
+      <span class="pill">Gmail API (Real)</span>
+      <span class="pill">Form & Calendar Invite</span>
     </div>
   </header>
 
@@ -605,8 +726,8 @@ def dashboard():
     <div>
       <div class="panel">
         <div class="panel-title">
-          <span>🏗️ Genmunity Multi-Agent Architecture (Google ADK)</span>
-          <a href="https://docs.google.com/spreadsheets/d/1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c/edit?usp=sharing" target="_blank" style="font-size:12px;">📊 국내 운영진/GDE 시트 열기 ↗</a>
+          <span>Genmunity Multi-Agent Architecture (Google ADK)</span>
+          <a href="https://docs.google.com/spreadsheets/d/1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c/edit?usp=sharing" target="_blank" style="font-size:12px;">국내 운영진/GDE 시트 열기 ↗</a>
         </div>
         <div class="arch-diagram">
           <div class="arch-node root">
@@ -614,7 +735,7 @@ def dashboard():
             <div style="font-size:12px;color:var(--muted);margin-top:4px;">Routes user intent & orchestrates SearchAgent ↔ OpsAgent handoff</div>
           </div>
           <div class="arch-node search">
-            <strong>🔍 SearchAgent</strong>
+            <strong>SearchAgent</strong>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">Data Crawler ← CommunityHub, Slack, Advocu, GDG Sheet</div>
             <div class="chip-list">
               <span class="chip">RAGSearch</span>
@@ -623,7 +744,7 @@ def dashboard():
             </div>
           </div>
           <div class="arch-node ops">
-            <strong>⚙️ OpsAgent (Primary Focus)</strong>
+            <strong>OpsAgent (Primary Focus)</strong>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">Post-Planning Speaker Outreach, Email Clustering, Form & Invite</div>
             <div class="chip-list">
               <span class="chip">Gmail</span>
@@ -637,8 +758,23 @@ def dashboard():
 
       <div class="panel">
         <div class="panel-title">
-          <span>⚡ OpsAgent — 이벤트 계획 이후 연사 운영 자동화 파이프라인</span>
-          <button class="btn green" id="btnRunAll" onclick="runFullOpsPipeline()">🚀 전 과정 원클릭 실행 (Step 1~5)</button>
+          <span>Mail Admin OAuth 등록 & 실시간 이메일 수신 트리거 (devstar5011@gcplab.me)</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="btnOAuthLogin" onclick="runAdminOAuthLogin()">OAuth 로그인 & 트리거 등록 (devstar5011@gcplab.me)</button>
+            <button class="btn yellow" onclick="runTriggerCheckNow(false)">수신함(INBOX) 트리거 즉시 체크</button>
+            <button class="btn purple" onclick="runTriggerCheckNow(true)">최신 메일로 트리거 강제 실행</button>
+          </div>
+        </div>
+        <div id="adminStatusBox" style="font-size:13px;background:rgba(15,23,42,0.65);border:1px solid var(--card-border);border-radius:10px;padding:12px 14px;line-height:1.6;">
+          관리자 계정 상태를 확인하는 중...
+        </div>
+        <div id="outAdminTrigger" class="step-output"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>OpsAgent — 이벤트 계획 이후 연사 운영 자동화 파이프라인</span>
+          <button class="btn green" id="btnRunAll" onclick="runFullOpsPipeline()">전 과정 원클릭 실행 (Step 1~5)</button>
         </div>
 
         <!-- Target Speakers (Hardcoded from SearchAgent) -->
@@ -646,14 +782,14 @@ def dashboard():
           <div class="speaker-card">
             <span class="chip" style="background:#1d4ed8;color:#fff;">첫번째 연사자 • AI GDE</span>
             <h4>한성민 (Sungmin Han)</h4>
-            <p>📧 <b>sniper45han@gmail.com</b></p>
-            <p>🎯 Google ADK와 Gemini 2.5 멀티 에이전트 핸즈온 (13:30 - 15:00)</p>
+            <p><b>sniper45han@gmail.com</b></p>
+            <p>Google ADK와 Gemini 2.5 멀티 에이전트 핸즈온 (13:30 - 15:00)</p>
           </div>
           <div class="speaker-card">
             <span class="chip" style="background:#047857;color:#fff;">두번째 연사자 • Flutter GDE</span>
             <h4>박제창 (Jechang Park)</h4>
-            <p>📧 <b>aristojeff@gmail.com</b></p>
-            <p>🎯 Flutter & Gemini API 크로스플랫폼 AI 앱 핸즈온 (15:20 - 16:50)</p>
+            <p><b>aristojeff@gmail.com</b></p>
+            <p>Flutter & Gemini API 크로스플랫폼 AI 앱 핸즈온 (15:20 - 16:50)</p>
           </div>
         </div>
 
@@ -723,29 +859,29 @@ def dashboard():
     <div>
       <div class="panel">
         <div class="panel-title">
-          <span>💬 Genmunity ADK 에이전트 대화 & 데모 시나리오</span>
+          <span>Genmunity ADK 에이전트 대화 & 데모 시나리오</span>
           <span style="font-size:12px;color:var(--muted);">RootAgent → SearchAgent / OpsAgent</span>
         </div>
 
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">👇 클릭하면 빌더톤 데모 시나리오 프롬프트가 즉시 실행됩니다:</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">클릭하면 빌더톤 데모 시나리오 프롬프트가 즉시 실행됩니다:</div>
         <div class="scenario-btns">
           <button class="scenario-btn" onclick="sendScenario('DevFest 핸즈온 행사에 필요한 스피커 연사를 찾고 있어')">
-            🔍 "DevFest 핸즈온 행사에 필요한 스피커 연사를 찾고 있어"
+            "DevFest 핸즈온 행사에 필요한 스피커 연사를 찾고 있어"
           </button>
           <button class="scenario-btn" onclick="sendScenario('올해 DevFest 행사는 언제까지?')">
-            📅 "올해 DevFest 행사는 언제까지?"
+            "올해 DevFest 행사는 언제까지?"
           </button>
           <button class="scenario-btn" onclick="sendScenario('DevFest 지원가능한 예산은?')">
-            💰 "DevFest 지원가능한 예산은?"
+            "DevFest 지원가능한 예산은?"
           </button>
           <button class="scenario-btn" onclick="sendScenario('OpsAgent를 사용해서 첫번째 연사자 한성민(sniper45han@gmail.com, AI GDE)과 두번째 연사자 박제창(aristojeff@gmail.com, Flutter GDE)에게 Gmail로 섭외 메일을 발송해줘')">
-            📧 "한성민(AI GDE), 박제창(Flutter GDE) 연사에게 Gmail 섭외 메일 발송해줘"
+            "한성민(AI GDE), 박제창(Flutter GDE) 연사에게 Gmail 섭외 메일 발송해줘"
           </button>
           <button class="scenario-btn" onclick="sendScenario('Gmail에서 DevFest 이벤트 및 연사 관련 메일 수신 확인 후 수집해서 클러스터링 해줘')">
-            🗂️ "Gmail에서 이벤트 메일 수신 확인 및 수집하여 클러스터링 해줘"
+            "Gmail에서 이벤트 메일 수신 확인 및 수집하여 클러스터링 해줘"
           </button>
           <button class="scenario-btn" onclick="sendScenario('발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호를 입력받는 Form을 생성하고 두 연사자에게 캘린더 초대장과 함께 보내줘')">
-            📋 "발표자 정보 Form(성함/이메일/연락처/티셔츠/차량번호) 생성 및 초대장 발송해줘"
+            "발표자 정보 Form(성함/이메일/연락처/티셔츠/차량번호) 생성 및 초대장 발송해줘"
           </button>
         </div>
 
@@ -763,7 +899,7 @@ def dashboard():
 
       <div class="panel">
         <div class="panel-title">
-          <span>📡 실시간 에이전트 실행 트레이스 & Form 응답 현황</span>
+          <span>실시간 에이전트 실행 트레이스 & Form 응답 현황</span>
           <button class="btn" style="padding:4px 10px;font-size:11px;" onclick="refreshState()">새로고침</button>
         </div>
         <div id="traceBox" style="font-size:12px;color:#cbd5e1;background:#0b1120;padding:12px;border-radius:8px;max-height:240px;overflow-y:auto;white-space:pre-wrap;">에이전트 실행 로그를 불러오는 중...</div>
@@ -781,10 +917,52 @@ def dashboard():
       return jsonStr;
     }
 
+    async function runAdminOAuthLogin() {
+      const btn = document.getElementById('btnOAuthLogin');
+      const outEl = document.getElementById('outAdminTrigger');
+      btn.disabled = true;
+      btn.innerText = '브라우저 OAuth 인증 대기 중...';
+      outEl.style.display = 'block';
+      outEl.innerHTML = '브라우저 창에서 devstar5011@gcplab.me 계정으로 로그인해 주세요...';
+      try {
+        const res = await fetch('/api/admin/oauth-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_email: 'devstar5011@gcplab.me' })
+        });
+        const data = await res.json();
+        outEl.innerHTML = formatOutputHtml(data);
+        refreshState();
+      } catch (err) {
+        outEl.innerHTML = '[오류 발생] ' + err;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'OAuth 로그인 & 트리거 등록 (devstar5011@gcplab.me)';
+      }
+    }
+
+    async function runTriggerCheckNow(forceLatest) {
+      const outEl = document.getElementById('outAdminTrigger');
+      outEl.style.display = 'block';
+      outEl.innerHTML = '관리자 수신함(INBOX)에서 신규 연사 메일 트리거를 확인 중입니다...';
+      try {
+        const res = await fetch('/api/admin/trigger/check-now', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force_process_latest: forceLatest })
+        });
+        const data = await res.json();
+        outEl.innerHTML = formatOutputHtml(data);
+        refreshState();
+      } catch (err) {
+        outEl.innerHTML = '[오류 발생] ' + err;
+      }
+    }
+
     async function runStep(endpoint, outputId) {
       const outEl = document.getElementById(outputId);
       outEl.style.display = 'block';
-      outEl.innerHTML = '⏳ OpsAgent가 작업을 수행 중입니다...';
+      outEl.innerHTML = 'OpsAgent가 작업을 수행 중입니다...';
       try {
         const res = await fetch('/api/ops/' + endpoint, {
           method: 'POST',
@@ -795,14 +973,14 @@ def dashboard():
         outEl.innerHTML = formatOutputHtml(data);
         refreshState();
       } catch (err) {
-        outEl.innerHTML = '❌ 오류 발생: ' + err;
+        outEl.innerHTML = '[오류 발생] ' + err;
       }
     }
 
     async function runFullOpsPipeline() {
       const btn = document.getElementById('btnRunAll');
       btn.disabled = true;
-      btn.innerText = '⏳ Step 1~5 순차 실행 중...';
+      btn.innerText = 'Step 1~5 순차 실행 중...';
       try {
         await runStep('speakers', 'outStep1');
         await runStep('outreach', 'outStep2');
@@ -811,7 +989,7 @@ def dashboard():
         await runStep('invite', 'outStep5');
       } finally {
         btn.disabled = false;
-        btn.innerText = '🚀 전 과정 원클릭 실행 (Step 1~5)';
+        btn.innerText = '전 과정 원클릭 실행 (Step 1~5)';
       }
     }
 
@@ -834,7 +1012,7 @@ def dashboard():
 
       const loadingDiv = document.createElement('div');
       loadingDiv.className = 'msg agent';
-      loadingDiv.textContent = '🤖 Google ADK 에이전트(RootAgent → SearchAgent / OpsAgent)가 실행 중입니다...';
+      loadingDiv.textContent = 'Google ADK 에이전트(RootAgent → SearchAgent / OpsAgent)가 실행 중입니다...';
       chatBox.appendChild(loadingDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -846,14 +1024,14 @@ def dashboard():
         });
         const data = await res.json();
         currentSessionId = data.session_id;
-        const toolsInfo = (data.tool_calls || []).map(t => `🛠️ [${t.agent}] ${t.tool_name}`).join(' → ');
+        const toolsInfo = (data.tool_calls || []).map(t => `[${t.agent}] ${t.tool_name}`).join(' → ');
         let headerHtml = toolsInfo ? `<div style="font-size:11px;color:#fbbf24;margin-bottom:6px;font-weight:700;">${toolsInfo}</div>` : '';
         let replyHtml = (data.reply || '').replace(/(https?:\/\/[^\s)]+)/g, '<a href="$1" target="_blank">$1</a>');
         loadingDiv.innerHTML = headerHtml + replyHtml;
         chatBox.scrollTop = chatBox.scrollHeight;
         refreshState();
       } catch (err) {
-        loadingDiv.textContent = '❌ 오류 발생: ' + err;
+        loadingDiv.textContent = '[오류 발생] ' + err;
       }
     }
 
@@ -861,17 +1039,43 @@ def dashboard():
       try {
         const res = await fetch('/api/state');
         const data = await res.json();
+        const admin = data.mail_admin || {};
+        const adminBox = document.getElementById('adminStatusBox');
+        if (adminBox) {
+          const authEmail = admin.authenticated_email || '미인증';
+          const targetEmail = admin.target_admin_email || 'devstar5011@gcplab.me';
+          const isTarget = admin.is_target_admin_active;
+          const badgeColor = isTarget ? '#10b981' : '#f59e0b';
+          const statusLabel = isTarget
+            ? '목표 메일 관리자(devstar5011@gcplab.me) 활성화됨'
+            : `현재 인증 계정: ${authEmail} (목표 관리자: ${targetEmail} — OAuth 로그인 버튼 또는 python register_mail_admin.py 실행 가능)`;
+          const watchInfo = admin.pubsub_watch ? admin.pubsub_watch.status : 'local_background_watcher_active';
+          adminBox.innerHTML = `
+            <div><b>상태:</b> <span style="color:${badgeColor};font-weight:700;">${statusLabel}</span></div>
+            <div><b>수신 감시 트리거:</b> ${admin.auto_trigger_enabled ? '활성화됨 (6초 주기 INBOX 감시 + Pub/Sub Webhook)' : '비활성'} | <b>Watch 모드:</b> ${watchInfo} | <b>History ID:</b> ${admin.last_history_id || '-'}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;">CLI 등록 명령어: <code>.venv/bin/python register_mail_admin.py --email devstar5011@gcplab.me</code></div>
+          `;
+        }
+
         const trace = (data.state && data.state.agent_trace) || [];
         const submissions = (data.state && data.state.form_submissions) || [];
+        const triggers = (admin.trigger_events) || [];
         let lines = [];
+        if (triggers.length > 0) {
+          lines.push('[이메일 수신 자동 트리거 실행 내역 (' + triggers.length + '건)]');
+          triggers.slice().reverse().forEach(t => {
+            lines.push(`  • [${t.trigger_source}] 발신: ${t.from} | 제목: ${t.subject} -> Form: ${t.onboarding_form_url || '완료'}`);
+          });
+          lines.push('');
+        }
         if (submissions.length > 0) {
-          lines.push('📋 [제출된 발표자 Form 응답 (' + submissions.length + '건)]');
+          lines.push('[제출된 발표자 Form 응답 (' + submissions.length + '건)]');
           submissions.forEach(s => {
             lines.push(`  • ${s.speaker_name} (${s.email}) | 연락처: ${s.phone} | 티셔츠: ${s.tshirt_size} | 차량번호: ${s.vehicle_number}`);
           });
           lines.push('');
         }
-        lines.push('⚡ [최근 ADK 에이전트 실행 트레이스]');
+        lines.push('[최근 ADK 에이전트 실행 트레이스]');
         if (trace.length === 0) {
           lines.push('  • 아직 실행 기록이 없습니다.');
         } else {
@@ -884,6 +1088,7 @@ def dashboard():
     }
 
     refreshState();
+    setInterval(refreshState, 6000);
   </script>
 </body>
 </html>"""

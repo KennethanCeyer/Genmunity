@@ -7,7 +7,27 @@ from genmunity_agent.config import (
     DEVFEST_EVENT_INFO,
     record_agent_trace,
 )
-from genmunity_agent.services import get_workspace_service
+from genmunity_agent.services import (
+    get_workspace_service,
+    check_and_trigger_on_inbound_emails,
+    sync_live_gmail_profile,
+)
+
+
+def check_email_receive_trigger_tool(force_process_latest: bool = False) -> Dict[str, Any]:
+    """
+    [Gmail Inbound Trigger] Check the registered Mail Administrator account (devstar5011@gcplab.me)
+    INBOX for newly received speaker emails (from sniper45han@gmail.com or aristojeff@gmail.com)
+    and automatically trigger email clustering, speaker onboarding Form creation, and Calendar invite dispatch.
+
+    Args:
+        force_process_latest: If True, forces trigger execution on the latest matching inbox email for demo verification.
+    """
+    return check_and_trigger_on_inbound_emails(
+        trigger_source="adk_ops_agent_tool",
+        force_process_latest=force_process_latest,
+    )
+
 
 
 def get_target_speakers_tool() -> Dict[str, Any]:
@@ -189,5 +209,6 @@ ops_agent = Agent(
         create_speaker_onboarding_form_tool,
         invite_speakers_with_form_and_calendar_tool,
         run_ops_full_workflow_tool,
+        check_email_receive_trigger_tool,
     ],
 )

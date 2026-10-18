@@ -1,10 +1,16 @@
-# Genmunity — CommunityHub & Event Operations Multi-Agent Platform
+<p align="center">
+  <img src="assets/logo.png" alt="Genmunity Logo" width="220" />
+</p>
 
-**Genmunity** is an agentic community building & DevFest event operations platform built with **Google ADK (`google-adk`)**, **Gemini 2.5 (`google-genai`)**, **Google Workspace APIs (Gmail, Forms, Calendar)**, and **FastAPI**.
+<h1 align="center">Genmunity</h1>
+
+<p align="center">
+  <strong>Genmunity</strong> is an agentic community building & DevFest event operations platform built with <strong>Google ADK (<code>google-adk</code>)</strong>, <strong>Gemini 2.5 (<code>google-genai</code>)</strong>, <strong>Google Workspace APIs (Gmail, Forms, Calendar)</strong>, and <strong>FastAPI</strong>.
+</p>
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -37,7 +43,7 @@ flowchart TD
 
 ---
 
-## ⚡ Key Workflows
+## Key Workflows
 
 ### 1. `SearchAgent` (CommunityHub & Speaker Matching)
 Crawls community sources (`CommunityHub`, `GDG/GDE Slack`, `Advocu`, and [GDG Korea Domestic Organizers Sheet](https://docs.google.com/spreadsheets/d/1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c/edit?usp=sharing)) to answer organizer queries:
@@ -62,7 +68,7 @@ Crawls community sources (`CommunityHub`, `GDG/GDE Slack`, `Advocu`, and [GDG Ko
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # 1. Create virtual environment & install dependencies
