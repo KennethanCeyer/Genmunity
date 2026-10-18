@@ -182,7 +182,9 @@ def test_events_gallery_rsvp_knowledge_and_photo_tracking():
     assert kb_resp.json()["status"] == "added"
 
     # Upload Event Photo and verify Attendee Tracking + Knowledge Base indexing
-    with open("assets/logo.png", "rb") as img_f:
+    from pathlib import Path
+    logo_path = Path(__file__).resolve().parent.parent / "assets" / "logo.png"
+    with open(logo_path, "rb") as img_f:
         photo_resp = client.post(
             f"/api/events/{first_id}/photos",
             data={"caption": "DevFest 핸즈온 세션 현장 사진"},

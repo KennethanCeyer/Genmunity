@@ -870,6 +870,7 @@ JSON 스키마:
         google_form_url: Optional[str] = None
         google_form_edit_url: Optional[str] = None
         form_provider = "genmunity_hosted_fallback"
+        entry_map: Dict[str, str] = {}
 
         try:
             forms_service = self.get_forms_service()

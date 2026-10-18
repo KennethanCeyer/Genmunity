@@ -76,6 +76,12 @@ from genmunity_agent.mcp_a2a import (
     get_a2a_agent_card,
     handle_a2a_jsonrpc,
 )
+from community_hub_agent.agent import root_agent as community_hub_root_agent
+from community_hub_agent.a2a_server import build_agent_card, run_agent_or_rag_fallback
+from community_hub_agent.rag.retriever import get_rag_retriever
+from community_hub_agent.web_ui import playground_router
+
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("genmunity.app")
@@ -140,6 +146,52 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+# Mount interactive RAG + GraphRAG + A2A Web Playground & Audit API (/playground, /api/rag/*)
+app.include_router(playground_router)
+
+
+@app.get("/.well-known/agent.json")
+@app.get("/.well-known/community-hub-agent-card.json")
+async def get_community_hub_agent_card() -> JSONResponse:
+    return JSONResponse(content=build_agent_card())
+
+
+@app.post("/a2a/rag")
+async def direct_a2a_rag_exchange(payload: dict) -> dict:
+    """Structured data-exchange endpoint for peer agents requesting Adaptive RAG + GraphRAG data."""
+    query = str(payload.get("query", "")).strip()
+    category = str(payload.get("category", "all")).strip()
+    top_k = int(payload.get("top_k", 5))
+    retriever = get_rag_retriever()
+    adaptive_data = retriever.retrieve_adaptive(
+        query=query, category=category, top_k=top_k
+    )
+    agent_reply = await run_agent_or_rag_fallback(query)
+    return {
+        "agent": community_hub_root_agent.name,
+        "answer": agent_reply["text"],
+        "execution_mode": agent_reply["mode"],
+        "routing": adaptive_data["routing"],
+        "rag_payload": adaptive_data.get("vector_rag"),
+        "graph_payload": adaptive_data.get("graph_rag"),
+    }
+
+
+@app.post("/a2a/graph-rag")
+async def direct_a2a_graph_rag_exchange(payload: dict) -> dict:
+    """Dedicated GraphRAG endpoint for multi-hop entity & relationship queries from peer agents."""
+    query = str(payload.get("query", "")).strip()
+    max_hops = int(payload.get("max_hops", 2))
+    top_k = int(payload.get("top_k", 20))
+    retriever = get_rag_retriever()
+    graph_data = retriever.retrieve_graph(
+        query=query, max_hops=max_hops, top_k=top_k
+    )
+    return {
+        "agent": community_hub_root_agent.name,
+        "graph_payload": graph_data,
+    }
 
 
 @app.get("/logo.png")
