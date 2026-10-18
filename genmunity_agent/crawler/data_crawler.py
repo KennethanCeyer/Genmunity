@@ -405,11 +405,14 @@ class DataCrawler:
         return matched or messages
 
     def crawl_all_sources(self, query: str = "", force_refresh_hub: bool = False) -> Dict[str, Any]:
-        """Aggregate authenticated CommunityHub, Advocu, GDG Korea Sheet, and Slack data for RAGSearch."""
+        """Aggregate authenticated CommunityHub, Advocu, GDG Korea Sheet, GDE/GDG Directory, and Slack data for RAGSearch."""
+        from genmunity_agent.services.gdg_directory import search_gdg_gde_directory
+
         return {
             "event_info": DEVFEST_EVENT_INFO,
             "community_hub": self.crawl_community_hub(force_refresh=force_refresh_hub),
             "speakers": self.crawl_speakers(query),
+            "gdg_gde_directory": search_gdg_gde_directory(query),
             "gdg_korea_sheet": self.fetch_gdg_korea_sheet_notice(),
             "slack_threads": self.crawl_slack_messages(query),
         }

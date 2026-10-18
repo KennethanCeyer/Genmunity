@@ -10,11 +10,12 @@ from genmunity_agent.config import (
 )
 from genmunity_agent.crawler import get_data_crawler
 from genmunity_agent.services import search_all_event_knowledge
+from genmunity_agent.services.gdg_directory import search_gdg_gde_directory
 
 
 def rag_search_tool(query: str) -> Dict[str, Any]:
     """
-    [RAGSearch] Search CommunityHub, Advocu, the GDG Korea Organizers Google Sheet,
+    [RAGSearch] Search CommunityHub, Advocu, GDG/GDE Slack, the GDG Korea Organizers & GDE Directory,
     and the Event Knowledge Base (including uploaded event photo attendee counts & RSVPs)
     for DevFest speaker candidates, DevFest season schedule/deadlines, supportable budgets,
     and live event status.
@@ -28,9 +29,11 @@ def rag_search_tool(query: str) -> Dict[str, Any]:
     record_agent_trace(
         agent_name="SearchAgent",
         capability="RAGSearch",
-        summary=f"RAG 검색 수행 (CommunityHub + Event Knowledge Base): '{query}'",
+        summary=f"RAG 검색 수행 (CommunityHub + GDG/GDE Directory + Event Knowledge Base): '{query}'",
         details={
             "matched_speakers": [f"{s['name']} ({s['role']})" for s in data["speakers"]],
+            "gde_matches_count": len(data.get("gdg_gde_directory", {}).get("gde_matches", [])),
+            "gdg_exact_matches_count": len(data.get("gdg_gde_directory", {}).get("gdg_exact_matches", [])),
             "sheet_url": GDG_KOREA_SHEET_URL,
             "knowledge_base_matches": len(kb_data.get("knowledge_base_matches", [])),
         },
@@ -39,6 +42,7 @@ def rag_search_tool(query: str) -> Dict[str, Any]:
         "capability": "RAGSearch",
         "query": query,
         "recommended_speakers": data["speakers"],
+        "gdg_gde_directory": data.get("gdg_gde_directory", {}),
         "devfest_schedule_deadline": DEVFEST_EVENT_INFO["season_deadline"],
         "devfest_event_date": DEVFEST_EVENT_INFO["event_date"],
         "devfest_budget_policy": DEVFEST_EVENT_INFO["budget_policy"],
@@ -47,6 +51,35 @@ def rag_search_tool(query: str) -> Dict[str, Any]:
         "events_overview": kb_data["events_overview"],
         "event_knowledge_base": kb_data["knowledge_base_matches"],
     }
+
+
+def search_gdg_gde_directory_tool(query: str = "", only_gde: bool = False) -> Dict[str, Any]:
+    """
+    [GDG & GDE Directory Search with PII Protection] Search the official GDG Korea Chapter Organizers
+    and GDE (Google Developer Experts) Directory.
+    Protects personal information by masking non-exact email addresses (`***`), while exposing
+    speaker-outreach-eligible emails ONLY for verified GDEs or 100% exact-matched GDG members.
+
+    Args:
+        query: Name, GDE domain (AI, Flutter, Android, Cloud, Go, Firebase), GDG Chapter, or Slack ID.
+        only_gde: If True, returns only verified GDEs.
+    """
+    res = search_gdg_gde_directory(query=query, only_gde=only_gde, unmask_exact_matches=True)
+    record_agent_trace(
+        agent_name="SearchAgent",
+        capability="GDGDirectorySearch",
+        summary=(
+            f"GDG/GDE 디렉토리 검색 (개인정보 보호 적용): '{query or '전체'}' "
+            f"(GDE {len(res['gde_matches'])}명, GDG 완전매칭 {len(res['gdg_exact_matches'])}명)"
+        ),
+        details={
+            "query": query,
+            "only_gde": only_gde,
+            "gde_matches": len(res["gde_matches"]),
+            "gdg_exact_matches": len(res["gdg_exact_matches"]),
+        },
+    )
+    return res
 
 
 def crawl_community_hub_tool(force_refresh: bool = False) -> Dict[str, Any]:
@@ -156,12 +189,17 @@ search_agent = Agent(
     name="SearchAgent",
     model=GEMINI_MODEL,
     description=(
-        "CommunityHub(https://developers.google.com/community/community-hub), GDG/GDE Slack, Advocu, 국내 운영진 Google Sheet, "
+        "CommunityHub(https://developers.google.com/community/community-hub), GDG/GDE Slack, Advocu, 국내 운영진/GDE 디렉토리(개인정보 보호 마스킹 적용), "
         "그리고 행사 지식 베이스(Form 응답 및 사진 참석자 수 추적 통계 포함)를 검색하여 "
-        "DevFest 핸즈온 연사자 매칭(한성민 AI GDE, 박제창 Flutter GDE), 올해 DevFest 행사 기한, 지원 가능 예산, 이벤트 지식을 제공하는 에이전트."
+        "DevFest 핸즈온 연사자 매칭(한성민 AI GDE, 박제창 Flutter GDE 및 분야별 GDE/완전 매칭 GDG), 올해 DevFest 행사 기한, 지원 가능 예산, 이벤트 지식을 제공하는 에이전트."
     ),
     instruction="""당신은 Genmunity의 **SearchAgent**입니다.
-Data Crawler가 인증 세션 쿠키로 수집한 **Google CommunityHub (`https://developers.google.com/community/community-hub`)**, GDG/GDE Slack, Advocu, 국내 GDG/GDE 운영진 공유 시트, 그리고 **행사 지식 베이스(Event Knowledge Base, Google Form 연사 온보딩 응답 현황, Gemini Vision 참석자 수 통계)** 데이터를 기반으로 질문에 정확하고 간결하게 한국어로 답변하세요.
+Data Crawler가 인증 세션 쿠키로 수집한 **Google CommunityHub (`https://developers.google.com/community/community-hub`)**, GDG/GDE Slack, Advocu, 국내 GDG 챕터 운영진 및 GDE 디렉토리, 그리고 **행사 지식 베이스(Event Knowledge Base, Google Form 연사 온보딩 응답 현황, Gemini Vision 참석자 수 통계)** 데이터를 기반으로 질문에 정확하고 간결하게 한국어로 답변하세요.
+
+[개인정보 보호 및 발표자 안내 이메일 대상자 원칙]
+- GDG Korea 챕터 운영진 및 GDE 디렉토리의 개인정보(이메일 등)를 엄격히 보호하세요.
+- 일반 목록 조회 시 비매칭 인원의 이메일은 마스킹(`***`)된 상태로만 안내하세요.
+- 발표자 초청/안내 이메일 발송 대상은 반드시 **GDE(Google Developer Expert)** 이거나 **완전히 매칭(Exact Match)되는 GDG 대상자**로만 한정하세요.
 
 핵심 역량(Tools):
 1. `rag_search_tool` (RAGSearch):
@@ -170,13 +208,15 @@ Data Crawler가 인증 세션 쿠키로 수집한 **Google CommunityHub (`https:
      * **두번째 연사자**: **박제창** (`aristojeff@gmail.com`) — **Flutter GDE** (Flutter & Gemini 크로스플랫폼 AI 핸즈온)
    - "올해 DevFest 행사는 언제까지?" -> 2026년 9월 1일 ~ 12월 31일 (결과 보고서 및 정산 마감 12월 31일)
    - "DevFest 지원가능한 예산은?" -> 규모별 $1,500 ~ $5,000 (한화 약 200만 원 ~ 680만 원) + GDE 초청 여비 지원 정책 안내
-2. `crawl_community_hub_tool` (CommunityHub Live Crawler): `https://developers.google.com/community/community-hub` 실시간 스크래핑 결과(DevFest 2026 테마, Highlighted Topics, Speaker Matching 가이드) 조회
-3. `search_event_knowledge_base_tool` (Event Knowledge Base): 이벤트별 지식 베이스 문서, 연사 Google Form 응답(티셔츠 사이즈, 차량 번호 등), 업로드된 현장 사진의 Gemini Vision 참석자 수 카운팅 통계 및 RSVP 현황 검색
-4. `slack_search_tool` (SlackSearch): GDG/GDE 슬랙 채널 내 연사 가용성 및 운영진 논의 검색
-5. `summarize_community_data_tool` (Summarizing): 검색된 연사 및 행사 정보를 요약하고, 섭외/메일 발송/폼 생성 요청이 있을 경우 OpsAgent와 연계하도록 안내하세요.
+2. `search_gdg_gde_directory_tool` (GDG/GDE Directory Search): 국내 11개 GDG 챕터 운영진 및 6개 분야 GDE(Android, AI, Cloud, Go, Firebase, Flutter) 검색 (개인정보 보호 마스킹 자동 적용)
+3. `crawl_community_hub_tool` (CommunityHub Live Crawler): `https://developers.google.com/community/community-hub` 실시간 스크래핑 결과 조회
+4. `search_event_knowledge_base_tool` (Event Knowledge Base): 이벤트별 지식 베이스 문서, 연사 Google Form 응답, 업로드된 현장 사진의 Gemini Vision 참석자 수 카운팅 통계 및 RSVP 현황 검색
+5. `slack_search_tool` (SlackSearch): GDG/GDE 슬랙 채널 내 연사 가용성 및 운영진 논의 검색
+6. `summarize_community_data_tool` (Summarizing): 검색된 연사 및 행사 정보를 요약하고, 섭외/메일 발송/폼 생성 요청이 있을 경우 OpsAgent와 연계하도록 안내하세요.
 """,
     tools=[
         rag_search_tool,
+        search_gdg_gde_directory_tool,
         crawl_community_hub_tool,
         search_event_knowledge_base_tool,
         slack_search_tool,

@@ -271,6 +271,21 @@ class GoogleWorkspaceService:
         meet_link: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Send an email via Gmail API using the Genmunity Email Design System (with optional RFC-5545 Calendar .ics attachment)."""
+        if email_type in ("outreach", "onboarding_invite"):
+            from genmunity_agent.services.gdg_directory import validate_speaker_email_recipient
+
+            check = validate_speaker_email_recipient(email=to_email, name=to_name)
+            if not check.get("allowed"):
+                return {
+                    "status": "blocked_by_privacy_policy",
+                    "to": to_email,
+                    "to_name": to_name,
+                    "subject": subject,
+                    "email_type": email_type,
+                    "reason": check.get("reason"),
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                }
+
         if speaker is None and email_type not in ("sponsor_outreach", "inquiry_reply", "delegation", "organizer_delegation"):
             for sp in HARDCODED_SPEAKERS:
                 if sp["email"].lower() == (to_email or "").lower() or sp["name"] in (to_name or ""):
@@ -1042,26 +1057,19 @@ JSON 스키마:
                 f"https://docs.google.com/forms/d/{form_id}/edit",
             )
             form_provider = "google_forms_api_v1"
-            entry_map = {}
 
-        public_base_url = GENMUNITY_BASE_URL.rstrip("/")
-        if "localhost" in public_base_url or "127.0.0.1" in public_base_url:
-            public_base_url = "https://genmunity-858263435030.asia-northeast3.run.app"
-        web_portal_form_url = f"{public_base_url}/forms/speaker-onboarding/{form_id}"
-        hosted_form_url = web_portal_form_url
-        primary_form_url = google_form_url or web_portal_form_url
+        if not entry_map and form_id == "1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU":
+            entry_map = {
+                "name": "entry.1854756518",
+                "email": "entry.565900156",
+                "session_title": "entry.2024692064",
+            }
+
+        hosted_form_url = google_form_url
+        primary_form_url = google_form_url
 
         speaker_personalized_links = []
         for sp in HARDCODED_SPEAKERS:
-            web_params = urlencode(
-                {
-                    "name": sp["name"],
-                    "email": sp["email"],
-                    "role": f"{sp['role']} ({sp['order_label']})",
-                    "session_title": sp["proposed_topic"],
-                }
-            )
-            web_target_url = f"{web_portal_form_url}?{web_params}"
             if google_form_url and entry_map:
                 gf_params: Dict[str, str] = {"usp": "pp_url"}
                 if "name" in entry_map:
@@ -1072,7 +1080,7 @@ JSON 스키마:
                     gf_params[entry_map["session_title"]] = f"[{sp['role']} / {sp['order_label']}] {sp['proposed_topic']}"
                 target_url = f"{google_form_url}?{urlencode(gf_params)}"
             else:
-                target_url = google_form_url or web_target_url
+                target_url = google_form_url
 
             speaker_personalized_links.append(
                 {
@@ -1083,7 +1091,6 @@ JSON 스키마:
                     "email": sp["email"],
                     "personalized_form_url": target_url,
                     "google_form_url": google_form_url,
-                    "web_form_url": web_target_url,
                 }
             )
 
@@ -1095,7 +1102,6 @@ JSON 스키마:
             "google_form_url": google_form_url,
             "google_form_edit_url": google_form_edit_url,
             "hosted_form_url": hosted_form_url,
-            "web_portal_form_url": web_portal_form_url,
             "fields": DEVFEST_EVENT_INFO["onboarding_form_fields"],
             "speaker_links": speaker_personalized_links,
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -1360,6 +1366,7 @@ JSON 스키마:
             not form_record
             or not str(form_record.get("google_form_url") or "").startswith("https://docs.google.com/forms/")
             or "localhost" in json.dumps(form_record)
+            or "speaker-onboarding" in json.dumps(form_record)
         ):
             form_record = self.create_speaker_onboarding_form()
 
@@ -1367,20 +1374,12 @@ JSON 스키마:
             item["email"]: item["personalized_form_url"]
             for item in form_record.get("speaker_links", [])
         }
-        web_link_map = {
-            item["email"]: item.get("web_form_url")
-            for item in form_record.get("speaker_links", [])
-        }
-
-        public_base_url = GENMUNITY_BASE_URL.rstrip("/")
-        if "localhost" in public_base_url or "127.0.0.1" in public_base_url:
-            public_base_url = "https://genmunity-858263435030.asia-northeast3.run.app"
 
         invite_results = []
         for speaker in HARDCODED_SPEAKERS:
             base_google_form_url = form_record.get("google_form_url") or DEVFEST_EVENT_INFO.get(
                 "default_google_form_url",
-                "https://docs.google.com/forms/d/1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU/viewform",
+                "https://docs.google.com/forms/d/e/1FAIpQLSeVYvU9nyRQmdhYgLIO2IwFc7PCZCAd-O43Rl-ltWyvhm8tjA/viewform",
             )
             candidate_url = (
                 link_map.get(speaker["email"])
@@ -1390,18 +1389,6 @@ JSON 스키마:
             if not str(candidate_url).startswith("https://docs.google.com/forms/"):
                 candidate_url = base_google_form_url
             personal_form_url = candidate_url
-
-            web_params = urlencode(
-                {
-                    "name": speaker["name"],
-                    "email": speaker["email"],
-                    "role": f"{speaker['role']} ({speaker['order_label']})",
-                    "session_title": speaker["proposed_topic"],
-                }
-            )
-            speaker_web_url = web_link_map.get(speaker["email"]) or (
-                f"{public_base_url}/forms/speaker-onboarding/{form_record['form_id']}?{web_params}"
-            )
 
             cal_event = self.create_google_calendar_event_for_speaker(speaker, personal_form_url)
             cal_html_link = cal_event.get("html_link") or "첨부된 .ics 캘린더 파일 참조"
@@ -1416,8 +1403,7 @@ JSON 스키마:
                 f"원활한 현장 운영과 연사 웰컴 키트 제작, 당일 무료 주차 등록을 위해 아래 발표자 사전 정보 등록 Google Form 작성을 부탁드립니다.\n\n"
                 f"■ 발표자 사전 정보 입력 Google Form 링크\n"
                 f"- Google Form (사전 정보 자동 입력): {personal_form_url}\n"
-                f"- Google Form (기본 링크): {base_google_form_url}\n"
-                f"- Genmunity 웹 온보딩 포털 (Cloud Run): {speaker_web_url}\n\n"
+                f"- Google Form (기본 링크): {base_google_form_url}\n\n"
                 f"■ 필수 입력 항목 안내\n"
                 f"1. 발표자 성함: {speaker['name']}\n"
                 f"2. 이메일: {speaker['email']}\n"
