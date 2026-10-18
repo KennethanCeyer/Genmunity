@@ -1425,6 +1425,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <nav className="gnb-nav">
                 <button
                   type="button"
+                  className={`nav-btn ${activeTab === "home" ? "active" : ""}`}
+                  onClick={() => setActiveTab("home")}
+                >
+                  <i className="ri-chat-smile-2-line"></i>
+                  <span>에이전트</span>
+                </button>
+                <button
+                  type="button"
                   className={`nav-btn ${activeTab === "events" ? "active" : ""}`}
                   onClick={() => setActiveTab("events")}
                 >
@@ -1437,8 +1445,16 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                   onClick={() => setActiveTab("mcp")}
                 >
                   <i className="ri-plug-line"></i>
-                  <span>MCP</span>
+                  <span>MCP · A2A</span>
                 </button>
+                <a
+                  href="/playground"
+                  className="nav-btn"
+                  style={{ textDecoration: "none", color: "var(--primary)", fontWeight: 700 }}
+                >
+                  <i className="ri-node-tree"></i>
+                  <span>RAG · GraphRAG 콘솔</span>
+                </a>
               </nav>
 
               <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "80px", justifyContent: "flex-end" }}>
@@ -1529,7 +1545,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                             sendChat();
                           }
                         }}
-                        placeholder={imageMode ? "생성할 이벤트 배너 이미지 설명을 입력하세요..." : "메시지를 입력하세요 (예: DevFest 핸즈온 스피커 추천해줘 / 섭외 메일 보내줘)"}
+                        placeholder={imageMode ? "생성할 이벤트 배너 이미지 설명을 입력하세요..." : "메시지를 입력하세요 (예: DevFest 핸즈온 스피커 추천해줘 / GDG Incheon 공동 주최 관계망 알려줘)"}
                         style={{
                           width: "100%",
                           border: "none",
@@ -1543,7 +1559,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                         }}
                       />
                       <div className="row-between" style={{ paddingTop: "12px", borderTop: "1px solid var(--border)", marginTop: "8px" }}>
-                        <div style={{ display: "flex", gap: "6px" }}>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                           <button
                             type="button"
                             className={`ds-btn sm ${imageMode ? "" : "outline"}`}
@@ -1560,6 +1576,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                             <i className="ri-cpu-line"></i>
                             <span>MCP 파이프라인</span>
                           </button>
+                          <a
+                            href="/playground"
+                            className="ds-btn outline sm"
+                            style={{ textDecoration: "none" }}
+                          >
+                            <i className="ri-database-2-line"></i>
+                            <span>172청크 · 435노드 감사 콘솔</span>
+                          </a>
                         </div>
                         <button type="submit" className="ds-btn" disabled={!chatInput.trim() || chatLoading}>
                           <span>전송</span>
@@ -1576,6 +1600,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                       { label: "섭외 메일 발송", prompt: "한성민(sniper45han@gmail.com)과 박제창(aristojeff@gmail.com) 연사에게 섭외 메일을 발송해줘", img: false },
                       { label: "Google Form · 캘린더 초대", prompt: "발표자 사전 정보 Google Form을 생성하고 두 연사자에게 캘린더 초대장과 함께 발송해줘", img: false },
                       { label: "행사 예산 · 마감 기한", prompt: "올해 DevFest 행사는 언제까지이고 지원 가능한 예산은 얼마야?", img: false },
+                      { label: "Build with AI 크레딧 · 시간표 (RAG)", prompt: "Build with AI 핸즈온 워크숍 추천 시간표(180분)와 Google Cloud 크레딧 신청 기한 및 참가자 배분 한도는?", img: false },
+                      { label: "GDG Incheon 공동주최 · 활동이력 (GraphRAG)", prompt: "GDG Incheon과 공동 주최(Co-hosting)한 챕터 관계망과 박제창(PARK JAICHANG) 님의 오거나이저·연사 활동 이력을 알려줘", img: false },
                       { label: "배너 이미지 생성", prompt: "DevFest 2026 Seoul 모던 테크 컨퍼런스 키비주얼 배너", img: true }
                     ].map((chip, i) => (
                       <button

@@ -433,8 +433,100 @@ async def run_agent_chat_stream(
             last_exc = exc
 
     if last_exc is not None:
-        yield _sse({"type": "error", "message": f"오류가 발생했습니다: {last_exc}"})
-        return
+        logger.warning(f"All Gemini models failed in stream ({last_exc}); using deterministic SearchAgent + Adaptive RAG/GraphRAG fallback.")
+        from genmunity_agent.sub_agents.search_agent import (
+            rag_search_tool,
+            hybrid_community_hub_rag_tool,
+        )
+        from community_hub_agent.a2a_server import run_agent_or_rag_fallback
+
+        active_agents = ["RootAgent", "SearchAgent"]
+        yield _sse(
+            {
+                "type": "agent_handoff",
+                "agent": "SearchAgent",
+                "active_agents": active_agents,
+                "message": "SearchAgent 에이전트가 RAG · GraphRAG 통합 검색을 수행합니다.",
+            }
+        )
+
+        step1_id = "step-1-rag_search_tool"
+        step1_label = TOOL_LABELS_KO.get("rag_search_tool", "rag_search_tool")
+        yield _sse(
+            {
+                "type": "tool_start",
+                "step_id": step1_id,
+                "agent": "SearchAgent",
+                "tool_name": "rag_search_tool",
+                "label": step1_label,
+                "args": {"query": prompt},
+            }
+        )
+        t0 = time.perf_counter()
+        rag_res = await asyncio.to_thread(rag_search_tool, prompt)
+        t1 = time.perf_counter()
+        step1_ms = int((t1 - t0) * 1000)
+        step1_summary = _summarize_tool_response("rag_search_tool", rag_res)
+        yield _sse(
+            {
+                "type": "tool_end",
+                "step_id": step1_id,
+                "agent": "SearchAgent",
+                "tool_name": "rag_search_tool",
+                "label": step1_label,
+                "elapsed_ms": step1_ms,
+                "summary": step1_summary,
+            }
+        )
+
+        step2_id = "step-2-hybrid_community_hub_rag_tool"
+        step2_label = "Community Hub Adaptive Vector RAG + GraphRAG 통합 검색"
+        yield _sse(
+            {
+                "type": "tool_start",
+                "step_id": step2_id,
+                "agent": "SearchAgent",
+                "tool_name": "hybrid_community_hub_rag_tool",
+                "label": step2_label,
+                "args": {"query": prompt, "strategy": "auto"},
+            }
+        )
+        hub_res = await asyncio.to_thread(hybrid_community_hub_rag_tool, prompt)
+        t2 = time.perf_counter()
+        step2_ms = int((t2 - t1) * 1000)
+        step2_summary = f"전략: {hub_res.get('selected_strategy', 'auto')} (Vector RAG + GraphRAG)"
+        yield _sse(
+            {
+                "type": "tool_end",
+                "step_id": step2_id,
+                "agent": "SearchAgent",
+                "tool_name": "hybrid_community_hub_rag_tool",
+                "label": step2_label,
+                "elapsed_ms": step2_ms,
+                "summary": step2_summary,
+            }
+        )
+
+        fallback_bundle = await run_agent_or_rag_fallback(prompt)
+        speakers = rag_res.get("recommended_speakers") or []
+        speaker_lines = [
+            f"- **{s.get('priority', idx)}순위 {s.get('name')}** ({s.get('role')}, `{s.get('email')}`) — 트랙: {s.get('track')}"
+            for idx, s in enumerate(speakers, start=1)
+        ]
+        reply_parts = [fallback_bundle.get("text", "")]
+        if any(k in prompt.lower() for k in ("연사", "스피커", "섭외", "devfest", "핸즈온", "speaker", "한성민", "박제창")):
+            reply_parts.append(
+                "#### [Genmunity SearchAgent 매칭 연사 및 행사 정보]\n"
+                + "\n".join(speaker_lines)
+                + f"\n- **예산 가이드**: {rag_res.get('budget_guidelines', '')}"
+            )
+        cleaned_reply = _strip_emojis("\n\n".join(p for p in reply_parts if p))
+        final_texts = [cleaned_reply]
+        chunk_size = 24
+        for i in range(0, len(cleaned_reply), chunk_size):
+            yield _sse({"type": "text_delta", "delta": cleaned_reply[i : i + chunk_size], "agent": "SearchAgent"})
+            await asyncio.sleep(0.005)
+        used_model = f"{used_model} (RAG+GraphRAG Fallback)"
 
     reply = "\n\n".join(final_texts) if final_texts else "요청하신 작업을 처리했습니다."
     state = load_runtime_state()
