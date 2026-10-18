@@ -43,7 +43,7 @@ DEFAULT_EVENTS: List[Dict[str, Any]] = [
         "budget": "$3,000 (Tier 2 중규모 멀티트랙 핸즈온)",
         "organizer": DEVFEST_EVENT_INFO["organizer"],
         "description": (
-            "Google ADK(Agent Development Kit), A2A, Gemini 2.5 및 Flutter 크로스플랫폼 AI를 주제로 진행되는 "
+            "Google ADK(Agent Development Kit), A2A, Gemini 4.0 Argon 및 Flutter 크로스플랫폼 AI를 주제로 진행되는 "
             "GDG Korea 대표 핸즈온 & 빌더톤 행사입니다. 에이전틱 워크플로우로 연사 섭외부터 현장 사진 인원 분석, "
             "지식 베이스 구축까지 전 과정을 자동화합니다."
         ),
@@ -99,7 +99,7 @@ DEFAULT_EVENTS: List[Dict[str, Any]] = [
                 "title": "DevFest 2026 확정 핸즈온 연사자 라인업 (AI GDE & Flutter GDE)",
                 "category": "Speakers",
                 "content": (
-                    "첫번째 연사자: 한성민 (sniper45han@gmail.com, AI GDE) - Google ADK와 Gemini 2.5를 활용한 멀티 에이전트 커뮤니티 자동화 핸즈온 (13:30-15:00). "
+                    "첫번째 연사자: 한성민 (sniper45han@gmail.com, AI GDE) - Google ADK와 Gemini 4.0 Argon을 활용한 멀티 에이전트 커뮤니티 자동화 핸즈온 (13:30-15:00). "
                     "두번째 연사자: 박제창 (aristojeff@gmail.com, Flutter GDE) - Flutter와 Firebase Genkit / Gemini API로 구현하는 크로스플랫폼 AI 앱 핸즈온 (15:20-16:50)."
                 ),
                 "source": "Advocu & GDG Korea Sheet",
@@ -510,7 +510,7 @@ def analyze_event_photo_and_track_attendees(
     caption: str = "",
 ) -> Dict[str, Any]:
     """
-    Use Gemini Vision API (gemini-2.5-flash) to analyze an uploaded event photo:
+    Use Gemini Vision API (gemini-4-argon / gemini-3.8-flash) to analyze an uploaded event photo:
     - Count total detected attendees / people in the venue photo
     - Estimate crowd density, engagement level, and zone breakdown
     - Automatically update the event's tracked_photo_attendees and append to the Event Knowledge Base
@@ -531,7 +531,7 @@ def analyze_event_photo_and_track_attendees(
 
     analysis_result = {
         "detected_headcount": 48,
-        "confidence": "High (Gemini 2.5 Vision)",
+        "confidence": "High (Gemini 4.0 Argon Vision)",
         "scene_summary": "핸즈온 세션장에 참석자들이 노트북을 열고 실습에 집중하고 있는 모습입니다.",
         "crowd_density": "약 85% 좌석 점유",
         "highlights": [
@@ -606,7 +606,7 @@ JSON 스키마:
                     f"감지된 참석자 수: {headcount}명 (이벤트 사진 누적 추적 인원: {total_photo_count}명). "
                     f"분석 요약: {photo_record['scene_summary']} (밀집도: {photo_record['crowd_density']})."
                 ),
-                "source": "Gemini 2.5 Vision Tracker",
+                "source": "Gemini 4.0 Argon Vision Tracker",
                 "updated_at": now_iso,
             }
             ev.setdefault("knowledge_base", []).insert(0, kb_entry)

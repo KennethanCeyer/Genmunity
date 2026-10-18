@@ -34,6 +34,10 @@ TOKEN_PATH: Path = BASE_DIR / "token.json"
 
 DEFAULT_SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/forms.body",
+    "https://www.googleapis.com/auth/forms.responses.readonly",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive.file",
 ]
 
 

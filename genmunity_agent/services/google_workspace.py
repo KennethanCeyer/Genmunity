@@ -582,28 +582,26 @@ JSON 스키마:
         return result
 
     # -------------------------------------------------------------------------
-    # Step 4: Speaker Onboarding Form Creation (Form)
+    # Step 4: Speaker Onboarding Form Creation (Google Forms API v1)
     # -------------------------------------------------------------------------
     def create_speaker_onboarding_form(
         self, form_title: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Create a Speaker Onboarding Form collecting:
+        Create a real Google Form (via Google Forms API v1: forms.googleapis.com) collecting:
         - 발표자 성함 (Speaker Name)
         - 이메일 (Email)
         - 연락처 (Phone Number)
         - 티셔츠 사이즈 (T-Shirt Size)
         - 차량 번호 (Vehicle License Plate Number)
         - 핸즈온 세션 제목 및 필요 환경 (Session Title)
-
-        Attempts Google Forms API first if scope permits, and always provisions
-        an interactive hosted Speaker Onboarding Form on Genmunity Web UI.
         """
         title = form_title or f"{DEVFEST_EVENT_INFO['event_tag']} 발표자 사전 정보 등록 폼 (Speaker Onboarding)"
         form_id = f"devfest2026-{uuid.uuid4().hex[:8]}"
         google_form_url: Optional[str] = None
+        google_form_edit_url: Optional[str] = None
+        form_provider = "genmunity_hosted_fallback"
 
-        # Try Google Forms API if credentials include forms scope
         try:
             forms_service = self.get_forms_service()
             if forms_service:
@@ -615,6 +613,17 @@ JSON 스키마:
                 g_form_id = created.get("formId")
                 if g_form_id:
                     batch_requests = [
+                        {
+                            "updateFormInfo": {
+                                "info": {
+                                    "description": (
+                                        f"{DEVFEST_EVENT_INFO['event_name']} ({DEVFEST_EVENT_INFO['event_date']}, "
+                                        f"{DEVFEST_EVENT_INFO['venue']}) 연사자 사전 정보 및 현장 지원(웰컴 티셔츠, 무료 주차 등록) 입력 폼입니다."
+                                    )
+                                },
+                                "updateMask": "description",
+                            }
+                        },
                         {
                             "createItem": {
                                 "item": {
@@ -660,7 +669,7 @@ JSON 스키마:
                         {
                             "createItem": {
                                 "item": {
-                                    "title": "티셔츠 사이즈",
+                                    "title": "티셔츠 사이즈 (연사 웰컴 키트)",
                                     "questionItem": {
                                         "question": {
                                             "required": True,
@@ -684,7 +693,7 @@ JSON 스키마:
                         {
                             "createItem": {
                                 "item": {
-                                    "title": "차량 번호 (무료 주차 등록용, 차량 미이용 시 '없음' 기재)",
+                                    "title": "차량 번호 (오토웨이타워 무료 주차 등록용, 차량 미이용 시 '없음' 기재)",
                                     "questionItem": {
                                         "question": {
                                             "required": True,
@@ -695,6 +704,20 @@ JSON 스키마:
                                 "location": {"index": 4},
                             }
                         },
+                        {
+                            "createItem": {
+                                "item": {
+                                    "title": "핸즈온 세션 제목 및 필요 환경",
+                                    "questionItem": {
+                                        "question": {
+                                            "required": False,
+                                            "textQuestion": {"paragraph": True},
+                                        }
+                                    },
+                                },
+                                "location": {"index": 5},
+                            }
+                        },
                     ]
                     forms_service.forms().batchUpdate(
                         formId=g_form_id, body={"requests": batch_requests}
@@ -702,10 +725,12 @@ JSON 스키마:
                     google_form_url = created.get(
                         "responderUri", f"https://docs.google.com/forms/d/{g_form_id}/viewform"
                     )
+                    google_form_edit_url = f"https://docs.google.com/forms/d/{g_form_id}/edit"
                     form_id = g_form_id
+                    form_provider = "google_forms_api_v1"
         except Exception as exc:
             logger.info(
-                f"Google Forms API scope not enabled on current token (using Genmunity Hosted Form): {exc}"
+                f"Google Forms API requires forms.body scope on user OAuth token (fallback active): {exc}"
             )
 
         hosted_form_url = f"{GENMUNITY_BASE_URL.rstrip('/')}/forms/speaker-onboarding/{form_id}"
@@ -713,14 +738,18 @@ JSON 스키마:
 
         speaker_personalized_links = []
         for sp in HARDCODED_SPEAKERS:
-            params = urlencode(
-                {
-                    "name": sp["name"],
-                    "email": sp["email"],
-                    "role": f"{sp['role']} ({sp['order_label']})",
-                    "session_title": sp["proposed_topic"],
-                }
-            )
+            if google_form_url:
+                target_url = google_form_url
+            else:
+                params = urlencode(
+                    {
+                        "name": sp["name"],
+                        "email": sp["email"],
+                        "role": f"{sp['role']} ({sp['order_label']})",
+                        "session_title": sp["proposed_topic"],
+                    }
+                )
+                target_url = f"{hosted_form_url}?{params}"
             speaker_personalized_links.append(
                 {
                     "speaker_order": sp["speaker_order"],
@@ -728,16 +757,18 @@ JSON 스키마:
                     "name": sp["name"],
                     "role": sp["role"],
                     "email": sp["email"],
-                    "personalized_form_url": f"{hosted_form_url}?{params}",
+                    "personalized_form_url": target_url,
                 }
             )
 
         form_record = {
             "form_id": form_id,
+            "form_provider": form_provider,
             "title": title,
             "primary_form_url": primary_form_url,
-            "hosted_form_url": hosted_form_url,
             "google_form_url": google_form_url,
+            "google_form_edit_url": google_form_edit_url,
+            "hosted_form_url": hosted_form_url,
             "fields": DEVFEST_EVENT_INFO["onboarding_form_fields"],
             "speaker_links": speaker_personalized_links,
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -749,14 +780,145 @@ JSON 스키마:
         save_runtime_state(state)
         return form_record
 
+    def fetch_google_form_responses(self, form_id: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch submitted responses from Google Forms API v1 (forms.responses.list)."""
+        state = load_runtime_state()
+        target_form_id = form_id or (state.get("latest_form") or {}).get("form_id")
+        if not target_form_id:
+            return {"status": "no_form_id", "responses": []}
+
+        try:
+            forms_service = self.get_forms_service()
+            if forms_service and not target_form_id.startswith("devfest2026-"):
+                res = forms_service.forms().responses().list(formId=target_form_id).execute()
+                return {
+                    "status": "fetched_from_google_forms_api",
+                    "form_id": target_form_id,
+                    "responses": res.get("responses", []),
+                }
+        except Exception as exc:
+            logger.warning(f"Failed to list Google Form responses for {target_form_id}: {exc}")
+
+        return {
+            "status": "fetched_from_local_state",
+            "form_id": target_form_id,
+            "responses": [
+                s
+                for s in state.get("form_submissions", [])
+                if s.get("form_id") == target_form_id or not form_id
+            ],
+        }
+
     # -------------------------------------------------------------------------
-    # Step 5: Calendar Invite (.ics + Calendar API) & Onboarding Form Dispatch
+    # Step 5: Google Calendar API Event Creation & Onboarding Form Dispatch
     # -------------------------------------------------------------------------
+    def create_google_calendar_event_for_speaker(
+        self, speaker: Dict[str, Any], form_url: str
+    ) -> Dict[str, Any]:
+        """
+        Create a real Google Calendar Event via Google Calendar API v3 (calendar.events().insert).
+        First tries user OAuth credentials (sending native Google Calendar attendee updates),
+        then falls back to GCP Service Account credentials if user OAuth lacks calendar scope.
+        """
+        summary = f"{DEVFEST_EVENT_INFO['event_tag']} {speaker['name']} ({speaker['role']}) 핸즈온 세션"
+        description = (
+            f"{DEVFEST_EVENT_INFO['event_name']} 공식 연사 세션 일정입니다.\n"
+            f"- 연사자: {speaker['name']} ({speaker['role']} / {speaker['order_label']})\n"
+            f"- 담당 트랙: {speaker['track']}\n"
+            f"- 제안 주제: {speaker['proposed_topic']}\n"
+            f"- 발표 시간: {speaker['session_time']}\n"
+            f"- 발표자 정보 등록 Google Form: {form_url}"
+        )
+
+        # 1. Try User OAuth Calendar Service (supports attendees & Google Meet creation)
+        try:
+            cal_service = self.get_calendar_service()
+            if cal_service:
+                ev = (
+                    cal_service.events()
+                    .insert(
+                        calendarId="primary",
+                        sendUpdates="all",
+                        conferenceDataVersion=1,
+                        body={
+                            "summary": summary,
+                            "location": DEVFEST_EVENT_INFO["venue"],
+                            "description": description,
+                            "start": {
+                                "dateTime": DEVFEST_EVENT_INFO["event_start_iso"],
+                                "timeZone": "Asia/Seoul",
+                            },
+                            "end": {
+                                "dateTime": DEVFEST_EVENT_INFO["event_end_iso"],
+                                "timeZone": "Asia/Seoul",
+                            },
+                            "attendees": [
+                                {"email": speaker["email"], "displayName": speaker["name"]}
+                            ],
+                            "conferenceData": {
+                                "createRequest": {
+                                    "requestId": f"meet-{uuid.uuid4().hex[:10]}",
+                                    "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                                }
+                            },
+                        },
+                    )
+                    .execute()
+                )
+                return {
+                    "provider": "google_calendar_api_v3_oauth",
+                    "event_id": ev.get("id"),
+                    "html_link": ev.get("htmlLink"),
+                    "hangout_link": ev.get("hangoutLink"),
+                }
+        except Exception as exc:
+            logger.info(f"User OAuth Calendar insert fallback to Service Account: {exc}")
+
+        # 2. Fallback to GCP Service Account Calendar API v3 so a real Google Calendar event is always created
+        sa_path = BASE_DIR / "service_account.json"
+        if sa_path.exists():
+            try:
+                from google.oauth2 import service_account
+
+                sa_creds = service_account.Credentials.from_service_account_file(
+                    str(sa_path), scopes=["https://www.googleapis.com/auth/calendar"]
+                )
+                sa_cal = build("calendar", "v3", credentials=sa_creds)
+                ev = (
+                    sa_cal.events()
+                    .insert(
+                        calendarId="primary",
+                        body={
+                            "summary": summary,
+                            "location": DEVFEST_EVENT_INFO["venue"],
+                            "description": description,
+                            "start": {
+                                "dateTime": DEVFEST_EVENT_INFO["event_start_iso"],
+                                "timeZone": "Asia/Seoul",
+                            },
+                            "end": {
+                                "dateTime": DEVFEST_EVENT_INFO["event_end_iso"],
+                                "timeZone": "Asia/Seoul",
+                            },
+                        },
+                    )
+                    .execute()
+                )
+                return {
+                    "provider": "google_calendar_api_v3_service_account",
+                    "event_id": ev.get("id"),
+                    "html_link": ev.get("htmlLink"),
+                    "hangout_link": ev.get("hangoutLink"),
+                }
+            except Exception as exc:
+                logger.warning(f"Service account Google Calendar creation failed: {exc}")
+
+        return {"provider": "ics_only", "event_id": None, "html_link": None, "hangout_link": None}
+
     def build_ics_calendar_invite(self, speaker: Dict[str, Any], form_url: str) -> str:
         """Build an RFC-5545 iCalendar (METHOD:REQUEST) payload for native Gmail Calendar invite card."""
         uid = f"devfest2026-speaker-{speaker['speaker_order']}-{uuid.uuid4().hex[:8]}@genmunity.gdg.kr"
         dtstamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        # 2026-11-21 13:00 KST = 04:00 UTC, 18:00 KST = 09:00 UTC
         dtstart = "20261121T040000Z"
         dtend = "20261121T090000Z"
         summary = f"{DEVFEST_EVENT_INFO['event_tag']} {speaker['name']} ({speaker['role']}) 핸즈온 세션 발표"
@@ -765,7 +927,7 @@ JSON 스키마:
             f"DevFest 2026 핸즈온 세션 공식 캘린더 초대장입니다.\\n\\n"
             f"- 배정 트랙: {speaker['track']}\\n"
             f"- 발표 시간: {speaker['session_time']}\\n"
-            f"- 발표자 정보 등록 폼(성함/이메일/연락처/티셔츠 사이즈/차량 번호): {form_url}"
+            f"- 발표자 정보 등록 Google Form(성함/이메일/연락처/티셔츠 사이즈/차량 번호): {form_url}"
         )
         location = DEVFEST_EVENT_INFO["venue"]
 
@@ -795,8 +957,8 @@ JSON 스키마:
         self, form_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Send the Speaker Onboarding Form link (발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호)
-        and Calendar Invitation (.ics + Calendar API) to both speakers via Gmail.
+        Send the Google Form link (발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호)
+        and Google Calendar Event Invitation (Google Calendar API v3 + .ics) to both speakers via Gmail.
         """
         state = load_runtime_state()
         form_record = None
@@ -814,16 +976,23 @@ JSON 스키마:
 
         invite_results = []
         for speaker in HARDCODED_SPEAKERS:
-            personal_form_url = link_map.get(speaker["email"], form_record["primary_form_url"])
+            personal_form_url = (
+                form_record.get("google_form_url")
+                or link_map.get(speaker["email"])
+                or form_record["primary_form_url"]
+            )
+            cal_event = self.create_google_calendar_event_for_speaker(speaker, personal_form_url)
+            cal_html_link = cal_event.get("html_link") or "첨부된 .ics 캘린더 파일 참조"
+
             subject = (
                 f"{DEVFEST_EVENT_INFO['event_tag']} [연사 초대 및 사전 정보 등록] "
-                f"{speaker['name']} {speaker['role']}님 발표자 정보 입력 Form 및 캘린더 초대장"
+                f"{speaker['name']} {speaker['role']}님 Google Form 및 Google Calendar 초대장"
             )
             body_text = (
                 f"안녕하세요 {speaker['name']} {speaker['role']}님 ({speaker['order_label']}),\n\n"
                 f"{DEVFEST_EVENT_INFO['event_name']} 연사로 함께해 주셔서 진심으로 감사드립니다!\n"
-                f"원활한 현장 운영과 연사 웰컴 키트 제작, 당일 무료 주차 등록을 위해 아래 발표자 사전 정보 등록 Form 작성을 부탁드립니다.\n\n"
-                f"■ 발표자 사전 정보 입력 Form 링크\n"
+                f"원활한 현장 운영과 연사 웰컴 키트 제작, 당일 무료 주차 등록을 위해 아래 발표자 사전 정보 등록 Google Form 작성을 부탁드립니다.\n\n"
+                f"■ 발표자 사전 정보 입력 Google Form 링크\n"
                 f"- {personal_form_url}\n\n"
                 f"■ 필수 입력 항목 안내\n"
                 f"1. 발표자 성함: {speaker['name']}\n"
@@ -832,10 +1001,16 @@ JSON 스키마:
                 f"4. 티셔츠 사이즈: 연사 전용 웰컴 티셔츠 사이즈 (S / M / L / XL / 2XL / 3XL)\n"
                 f"5. 차량 번호: 오토웨이타워 무료 주차 사전 등록용 차량 번호 (자차 미이용 시 '없음' 기재)\n"
                 f"6. 핸즈온 세션 제목: {speaker['proposed_topic']}\n\n"
-                f"■ 행사 및 캘린더 일정 안내 (본 메일에 캘린더 초대장 .ics 파일이 함께 첨부되어 있습니다)\n"
+                f"■ Google Calendar 공식 일정 등록 안내\n"
                 f"- 일시: {DEVFEST_EVENT_INFO['event_date']} ({speaker['session_time']})\n"
-                f"- 장소: {DEVFEST_EVENT_INFO['venue']}\n\n"
-                f"감사합니다.\n"
+                f"- 장소: {DEVFEST_EVENT_INFO['venue']}\n"
+                f"- Google Calendar 일정 링크: {cal_html_link}\n"
+                + (
+                    f"- Google Meet 링크: {cal_event['hangout_link']}\n"
+                    if cal_event.get("hangout_link")
+                    else ""
+                )
+                + "\n감사합니다.\n"
                 f"GDG Korea DevFest 2026 운영팀 (Genmunity OpsAgent) 드림"
             )
 
@@ -848,48 +1023,20 @@ JSON 스키마:
                 ics_content=ics_payload,
             )
 
-            # Optional Google Calendar API direct insert if calendar scope is available
-            cal_api_event_id = None
-            try:
-                cal_service = self.get_calendar_service()
-                if cal_service:
-                    ev = (
-                        cal_service.events()
-                        .insert(
-                            calendarId="primary",
-                            sendUpdates="all",
-                            body={
-                                "summary": f"{DEVFEST_EVENT_INFO['event_tag']} {speaker['name']} ({speaker['role']}) 핸즈온 세션",
-                                "location": DEVFEST_EVENT_INFO["venue"],
-                                "description": body_text,
-                                "start": {
-                                    "dateTime": DEVFEST_EVENT_INFO["event_start_iso"],
-                                    "timeZone": "Asia/Seoul",
-                                },
-                                "end": {
-                                    "dateTime": DEVFEST_EVENT_INFO["event_end_iso"],
-                                    "timeZone": "Asia/Seoul",
-                                },
-                                "attendees": [
-                                    {"email": speaker["email"], "displayName": speaker["name"]}
-                                ],
-                            },
-                        )
-                        .execute()
-                    )
-                    cal_api_event_id = ev.get("id")
-            except Exception:
-                pass
-
             rec = {
                 "speaker_order": speaker["speaker_order"],
                 "order_label": speaker["order_label"],
                 "speaker_name": speaker["name"],
                 "speaker_role": speaker["role"],
                 "speaker_email": speaker["email"],
+                "form_provider": form_record.get("form_provider"),
                 "form_url": personal_form_url,
+                "google_form_url": form_record.get("google_form_url"),
+                "calendar_provider": cal_event.get("provider"),
+                "calendar_api_event_id": cal_event.get("event_id"),
+                "calendar_html_link": cal_event.get("html_link"),
+                "google_meet_link": cal_event.get("hangout_link"),
                 "calendar_ics_attached": True,
-                "calendar_api_event_id": cal_api_event_id,
                 "delivery": email_res,
             }
             invite_results.append(rec)
@@ -901,8 +1048,11 @@ JSON 스키마:
         return {
             "status": "invited",
             "form_id": form_record["form_id"],
+            "form_provider": form_record.get("form_provider"),
             "form_title": form_record["title"],
             "primary_form_url": form_record["primary_form_url"],
+            "google_form_url": form_record.get("google_form_url"),
+            "google_form_edit_url": form_record.get("google_form_edit_url"),
             "required_fields": [f["label"] for f in form_record["fields"]],
             "invites_sent": invite_results,
         }

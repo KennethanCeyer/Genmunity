@@ -11,6 +11,9 @@ from genmunity_agent.services import (
     get_workspace_service,
     check_and_trigger_on_inbound_emails,
     sync_live_gmail_profile,
+    create_or_modify_event,
+    manage_event_rsvp,
+    add_event_knowledge_entry,
 )
 
 
@@ -121,6 +124,25 @@ def create_speaker_onboarding_form_tool(form_title: str = "") -> Dict[str, Any]:
     return res
 
 
+def fetch_google_form_responses_tool(form_id: str = "") -> Dict[str, Any]:
+    """
+    [Google Forms API v1] Retrieve submitted speaker onboarding responses from Google Forms
+    (forms.responses.list) for the given form_id (or latest form).
+
+    Args:
+        form_id: Optional Google Form ID to query responses for.
+    """
+    ws = get_workspace_service()
+    res = ws.fetch_google_form_responses(form_id=form_id or None)
+    record_agent_trace(
+        agent_name="OpsAgent",
+        capability="GoogleFormsResponses",
+        summary=f"Google Forms 응답 조회 완료 (form_id={res.get('form_id')}, 응답 {len(res.get('responses', []))}건)",
+        details=res,
+    )
+    return res
+
+
 def invite_speakers_with_form_and_calendar_tool(form_id: str = "") -> Dict[str, Any]:
     """
     [Form + Calendar + Gmail] Send the generated Speaker Onboarding Form link and a Google Calendar
@@ -178,15 +200,109 @@ def run_ops_full_workflow_tool(custom_context: str = "") -> Dict[str, Any]:
     }
 
 
+def manage_event_rsvp_tool(
+    attendee_name: str,
+    attendee_email: str = "attendee@gdg.kr",
+    event_id: str = "devfest-2026-seoul",
+    action: str = "create",
+    role: str = "Developer",
+    track: str = "AI / Agentic Workflow Hands-on",
+    dietary: str = "일반",
+) -> Dict[str, Any]:
+    """
+    [Event RSVP Management] Create a new RSVP, modify an existing RSVP, or cancel an RSVP
+    for a community event (callable from both the Main Chat and Event Gallery Detail Chat).
+
+    Args:
+        attendee_name: Name of the attendee (e.g. '김철수', '한성민').
+        attendee_email: Email address of the attendee.
+        event_id: Event ID or title (default 'devfest-2026-seoul').
+        action: 'create', 'modify', or 'cancel'.
+        role: Attendee role/job title.
+        track: Preferred session track.
+        dietary: Dietary preference ('일반', '비건', '할랄' 등).
+    """
+    return manage_event_rsvp(
+        event_id=event_id,
+        action=action,
+        attendee_name=attendee_name,
+        attendee_email=attendee_email,
+        role=role,
+        track=track,
+        dietary=dietary,
+    )
+
+
+def create_or_modify_event_tool(
+    title: str,
+    event_id: str = "",
+    date: str = "2026-11-21",
+    venue: str = "구글 스타트업 캠퍼스 서울",
+    status: str = "참가자 모집 중 (RSVP 오픈)",
+    capacity: int = 150,
+    budget: str = "$3,000",
+    description: str = "",
+) -> Dict[str, Any]:
+    """
+    [Event Planning & Modification] Create a new GDG/DevFest event or modify an existing event's
+    title, date, venue, status, capacity, or budget via chat.
+
+    Args:
+        title: Title of the event to create or modify.
+        event_id: Optional event_id if modifying an existing event (e.g. 'devfest-2026-seoul').
+        date: Event date (YYYY-MM-DD).
+        venue: Event venue location.
+        status: Current operational status label.
+        capacity: Maximum attendee capacity.
+        budget: Allocated budget description.
+        description: Detailed event overview.
+    """
+    return create_or_modify_event(
+        event_id=event_id or None,
+        title=title,
+        date=date,
+        venue=venue,
+        status=status,
+        capacity=capacity,
+        budget=budget,
+        description=description,
+    )
+
+
+def add_event_knowledge_tool(
+    title: str,
+    content: str,
+    event_id: str = "devfest-2026-seoul",
+    category: str = "Event Knowledge",
+) -> Dict[str, Any]:
+    """
+    [Event Knowledge Base] Add a new knowledge base note, FAQ, or operational guideline to an event
+    so that SearchAgent can retrieve it.
+
+    Args:
+        title: Title of the knowledge entry.
+        content: Detailed content of the knowledge entry.
+        event_id: Target event ID (default 'devfest-2026-seoul').
+        category: Category label ('Logistics', 'Policy & Budget', 'FAQ', 'Session Note').
+    """
+    return add_event_knowledge_entry(
+        event_id=event_id,
+        title=title,
+        content=content,
+        category=category,
+    )
+
+
 ops_agent = Agent(
     name="OpsAgent",
     model=GEMINI_MODEL,
     description=(
         "이벤트 계획 이후 연사자 섭외 메일 발송(Gmail + GenContent), 행사 관련 수신 메일 수집 및 클러스터링(Gmail + GenContent), "
-        "발표자 정보 입력 Form 생성(성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호), 그리고 캘린더 초대장 발송(Calendar + Gmail)을 수행하는 운영 자동화 에이전트."
+        "발표자 정보 입력 Form 생성(성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호), 캘린더 초대장 발송(Calendar + Gmail), "
+        "그리고 이벤트 생성/수정 및 참가자 RSVP 관리, 행사 지식 베이스 등록을 수행하는 운영 자동화 에이전트."
     ),
     instruction="""당신은 Genmunity의 핵심 운영 자동화 에이전트인 **OpsAgent**입니다.
-아키텍처에 정의된 4가지 핵심 모듈(**Gmail**, **Calendar**, **GenContent**, **Form**)을 조합하여 이벤트 계획 이후의 연사자 운영 워크플로우를 자동화합니다.
+아키텍처에 정의된 핵심 모듈(**Gmail**, **Calendar**, **GenContent**, **Form**, **Event & RSVP Management**)을 조합하여 이벤트 기획부터 연사자 섭외 및 참가자 RSVP/사후 정리를 자동화합니다.
 
 [기본 대상 연사자 (SearchAgent 연동 하드코딩 정보)]
 1. **첫번째 연사자**: **한성민** (`sniper45han@gmail.com`) — **AI GDE**
@@ -200,15 +316,24 @@ ops_agent = Agent(
 - **Step 5 (`invite_speakers_with_form_and_calendar_tool`)**: 생성된 Form 링크와 Google Calendar 일정 초대장(.ics)을 두 연사자(`sniper45han@gmail.com`, `aristojeff@gmail.com`)에게 발송
 - 전체 과정을 한 번에 실행해달라는 요청이면 `run_ops_full_workflow_tool`을 호출하세요.
 
-실행 결과를 브리핑할 때는 발송된 Gmail 메시지 ID, 클러스터링 요약, 생성된 Form URL(필드: 발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호), 캘린더 초대 상태를 명확하고 친절하게 한국어로 정리해 주세요.
+[이벤트 기획/수정 및 RSVP 조작]
+- 이벤트 생성 또는 기존 이벤트 상태/정원/일정 수정 요청 시 `create_or_modify_event_tool`을 호출하세요.
+- 참가자 RSVP 신청, 수정(트랙/식단 변경 등), 취소 요청 시 `manage_event_rsvp_tool`을 호출하세요.
+- 행사 지식 베이스 추가 요청 시 `add_event_knowledge_tool`을 호출하세요.
+
+실행 결과를 브리핑할 때는 발송된 Gmail 메시지 ID, 클러스터링 요약, 생성된 Form URL(필드: 발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호), 캘린더 초대 및 RSVP/이벤트 상태를 명확하고 친절하게 한국어로 정리해 주세요.
 """,
     tools=[
         get_target_speakers_tool,
         generate_and_send_speaker_emails_tool,
         collect_and_cluster_event_emails_tool,
         create_speaker_onboarding_form_tool,
+        fetch_google_form_responses_tool,
         invite_speakers_with_form_and_calendar_tool,
         run_ops_full_workflow_tool,
         check_email_receive_trigger_tool,
+        manage_event_rsvp_tool,
+        create_or_modify_event_tool,
+        add_event_knowledge_tool,
     ],
 )
