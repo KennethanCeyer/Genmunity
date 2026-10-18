@@ -33,6 +33,12 @@ from genmunity_agent.sub_agents.ops_agent import (
     run_ops_full_workflow_tool,
 )
 from genmunity_agent.runner import run_agent_chat
+from community_hub_agent.agent import root_agent as community_hub_root_agent
+from community_hub_agent.a2a_server import build_agent_card, run_agent_or_rag_fallback
+from community_hub_agent.rag.retriever import get_rag_retriever
+from community_hub_agent.web_ui import playground_router
+
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("genmunity.app")
@@ -70,9 +76,141 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Genmunity — Agentic CommunityHub & Event Ops Platform (Google ADK)",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
+
+# Mount interactive RAG + GraphRAG + A2A Web Playground & Audit API (/playground, /api/rag/*)
+app.include_router(playground_router)
+
+
+@app.get("/.well-known/agent.json")
+@app.get("/.well-known/agent-card.json")
+async def get_well_known_agent_card() -> JSONResponse:
+    return JSONResponse(content=build_agent_card())
+
+
+@app.post("/a2a/rag")
+async def direct_a2a_rag_exchange(payload: dict) -> dict:
+    """Structured data-exchange endpoint for peer agents requesting Adaptive RAG + GraphRAG data."""
+    query = str(payload.get("query", "")).strip()
+    category = str(payload.get("category", "all")).strip()
+    top_k = int(payload.get("top_k", 5))
+    retriever = get_rag_retriever()
+    adaptive_data = retriever.retrieve_adaptive(
+        query=query, category=category, top_k=top_k
+    )
+    agent_reply = await run_agent_or_rag_fallback(query)
+    return {
+        "agent": community_hub_root_agent.name,
+        "answer": agent_reply["text"],
+        "execution_mode": agent_reply["mode"],
+        "routing": adaptive_data["routing"],
+        "rag_payload": adaptive_data.get("vector_rag"),
+        "graph_payload": adaptive_data.get("graph_rag"),
+    }
+
+
+@app.post("/a2a/graph-rag")
+async def direct_a2a_graph_rag_exchange(payload: dict) -> dict:
+    """Dedicated GraphRAG endpoint for multi-hop entity & relationship queries from peer agents."""
+    query = str(payload.get("query", "")).strip()
+    max_hops = int(payload.get("max_hops", 2))
+    top_k = int(payload.get("top_k", 20))
+    retriever = get_rag_retriever()
+    graph_data = retriever.retrieve_graph(
+        query=query, max_hops=max_hops, top_k=top_k
+    )
+    return {
+        "agent": community_hub_root_agent.name,
+        "graph_payload": graph_data,
+    }
+
+
+@app.post("/a2a")
+async def a2a_jsonrpc_endpoint(request: Request) -> JSONResponse:
+    """Standard A2A JSON-RPC 2.0 endpoint handling `message/send`, `tasks/send`, and `agent/card`."""
+    body = await request.json()
+    rpc_id = body.get("id", str(uuid.uuid4()))
+    method = body.get("method", "message/send")
+    params = body.get("params", {}) or {}
+
+    if method in ("agent/authenticatedExtendedCard", "agent/card"):
+        return JSONResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": rpc_id,
+                "result": build_agent_card(),
+            }
+        )
+
+    user_text = ""
+    message_obj = params.get("message", {})
+    for part in message_obj.get("parts", []):
+        if isinstance(part, dict) and "text" in part:
+            user_text += str(part["text"]) + "\n"
+    user_text = user_text.strip() or str(params.get("query", "")).strip()
+
+    if not user_text:
+        return JSONResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": rpc_id,
+                "error": {
+                    "code": -32602,
+                    "message": "Missing text part in A2A message params.",
+                },
+            },
+            status_code=400,
+        )
+
+    session_id = params.get("contextId") or params.get("id")
+    result_bundle = await run_agent_or_rag_fallback(
+        user_text=user_text, session_id=session_id
+    )
+    task_id = params.get("id") or f"task_{uuid.uuid4().hex[:10]}"
+    context_id = session_id or f"ctx_{uuid.uuid4().hex[:10]}"
+    message_id = f"msg_{uuid.uuid4().hex[:10]}"
+
+    response_payload = {
+        "jsonrpc": "2.0",
+        "id": rpc_id,
+        "result": {
+            "kind": "message",
+            "messageId": message_id,
+            "taskId": task_id,
+            "contextId": context_id,
+            "role": "agent",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": result_bundle["text"],
+                },
+                {
+                    "kind": "data",
+                    "data": {
+                        "source_agent": community_hub_root_agent.name,
+                        "execution_mode": result_bundle["mode"],
+                        "routing": result_bundle["routing"],
+                        "citations": [
+                            {
+                                "chunk_id": r["chunk_id"],
+                                "title": r["title"],
+                                "category": r["category"],
+                                "source_url": r["source_url"],
+                                "score": r["score"],
+                            }
+                            for r in result_bundle["rag_results"]
+                        ],
+                        "graph_triples": (result_bundle.get("graph_rag") or {}).get(
+                            "subgraph_triples", []
+                        )[:10],
+                    },
+                },
+            ],
+        },
+    }
+    return JSONResponse(content=response_payload)
 
 
 @app.get("/logo.png")
@@ -714,6 +852,8 @@ def dashboard():
       </div>
     </div>
     <div class="pill-bar">
+      <a href="/playground" class="pill" style="background:rgba(52,168,83,0.22);border-color:#34A853;color:#bbf7d0;text-decoration:none;">🧪 RAG · GraphRAG · A2A 테스트 콘솔 (/playground) ↗</a>
+      <a href="/.well-known/agent-card.json" target="_blank" class="pill" style="text-decoration:none;color:#93c5fd;">A2A Agent Card ↗</a>
       <span class="pill">Google ADK v2</span>
       <span class="pill">Gemini 2.5 Flash</span>
       <span class="pill">Gmail API (Real)</span>

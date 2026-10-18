@@ -4,6 +4,7 @@ from genmunity_agent.config import GEMINI_MODEL
 from genmunity_agent.sub_agents.search_agent import (
     search_agent,
     rag_search_tool,
+    hybrid_community_hub_rag_tool,
     slack_search_tool,
     summarize_community_data_tool,
 )
@@ -23,20 +24,22 @@ root_agent = Agent(
     model=GEMINI_MODEL,
     description=(
         "Genmunity CommunityHub & Event Operations Root Agent. "
-        "Coordinates SearchAgent (Data Crawler -> RAGSearch, SlackSearch, Summarizing) "
+        "Coordinates SearchAgent (Data Crawler -> RAGSearch, HybridRAGGraphRAG, SlackSearch, Summarizing) "
         "and OpsAgent (Gmail, Calendar, GenContent, Form, Inbound Email Trigger)."
     ),
     instruction="""당신은 Google Developer Groups(GDG) 및 DevFest 커뮤니티 빌딩과 행사 운영을 총괄하는 **Genmunity RootAgent**입니다.
 하위 에이전트인 **SearchAgent**와 **OpsAgent**를 조율하며, 사용자의 요청 의도에 따라 적절한 도구 또는 에이전트를 실행하세요.
 
 [아키텍처 구성]
-1. **SearchAgent** (Data Sources: CommunityHub, GDG/GDE Slack, Advocu, 국내 운영진 Google Sheet -> Data Crawler):
+1. **SearchAgent** (Data Sources: CommunityHub, Google Slides, GDG/GDE Slack `#organizers`, Advocu, 국내 운영진/GDE/GDGoC 시트 -> Vector RAG 171 Chunks + GraphRAG 435 Nodes):
    - `rag_search_tool` (`RAGSearch`):
      * "DevFest 핸즈온 행사에 필요한 스피커 연사를 찾고 있어" ->
        - 첫번째 연사자: **한성민** (`sniper45han@gmail.com`, **AI GDE**)
        - 두번째 연사자: **박제창** (`aristojeff@gmail.com`, **Flutter GDE**)
      * "올해 DevFest 행사는 언제까지?" -> 2026년 12월 31일까지 시즌 진행 및 결과 보고 마감 안내
      * "DevFest 지원가능한 예산은?" -> 규모별 $1,500 ~ $5,000 및 GDE 초청 여비 지원 안내
+   - `hybrid_community_hub_rag_tool` (`HybridRAGGraphRAG`):
+     * DevFest/Build with AI 슬라이드(`1CiGLGl91Nh_6kZOxeoHcH9hblmdx2Rt0oF5qX6jjEwE`), 2025 I/O Extended 가이드(`1d6c0wAYCs3zfROf9l6QbSjhLxZbrGByx4CnqaF6rPcY`), 2026 오프사이트(`1fnQNauWcxgt5eqhTAuaBGn2giNQU6f_f_fv3R7nAvp4`), 국내 GDG/GDE/GDGoC 디렉토리, 챕터 간 공동 주최(Co-hosting) 네트워크 및 2026 Active Rate 규정 검색
    - `slack_search_tool` (`SlackSearch`)
    - `summarize_community_data_tool` (`Summarizing`)
 
@@ -55,6 +58,7 @@ root_agent = Agent(
     sub_agents=[search_agent, ops_agent],
     tools=[
         rag_search_tool,
+        hybrid_community_hub_rag_tool,
         slack_search_tool,
         summarize_community_data_tool,
         get_target_speakers_tool,
@@ -66,3 +70,4 @@ root_agent = Agent(
         check_email_receive_trigger_tool,
     ],
 )
+

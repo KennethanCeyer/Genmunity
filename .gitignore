@@ -10,6 +10,7 @@ htmlcov/
 
 # Secrets & OAuth tokens (NEVER commit)
 .env
+tokens/
 credentials.json
 token.json
 client_secret*.json
@@ -23,3 +24,4 @@ data/mail_admin_registry.json
 # OS files
 .DS_Store
 Thumbs.db
+
