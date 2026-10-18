@@ -10,7 +10,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Genmunity — Modern Event & Agentic Platform</title>
+  <title>Genmunity</title>
   <link rel="icon" type="image/png" href="/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -754,15 +754,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           {/* Row 1: Header Box */}
           <div className="row-box">
             <div className="row-between">
-              <div>
-                <span className="status-tag primary">MCP · A2A Integration</span>
-                <h1 style={{ margin: "10px 0 6px", fontSize: "24px", fontWeight: 800 }}>
-                  에이전트에 Genmunity MCP 서버 연결하기
-                </h1>
-                <p style={{ margin: 0, fontSize: "14.5px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                  사용 중인 AI 에이전트에 아래 설정을 복사해 추가하면, 자연어 대화만으로 연사 섭외부터 Google Form · Calendar 운영까지 실행할 수 있습니다.
-                </p>
-              </div>
+              <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 800 }}>
+                MCP 서버 연결
+              </h1>
               <button type="button" className="ds-btn outline sm" onClick={checkConnection}>
                 <i className="ri-pulse-line"></i>
                 <span>{pingStatus || "서버 연결 확인"}</span>
@@ -1451,7 +1445,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                 </button>
               </nav>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "80px", justifyContent: "flex-end" }}>
                 {activeTab === "home" && messages.length > 0 && (
                   <button
                     type="button"
@@ -1467,7 +1461,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                     <span>새 대화</span>
                   </button>
                 )}
-                <WorkspaceDock links={defaultLinks} />
               </div>
             </div>
           </header>
@@ -1477,13 +1470,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
             <div className="page-container" style={{ maxWidth: "820px", flex: 1, justifyContent: messages.length === 0 ? "center" : "flex-start" }}>
               {messages.length === 0 ? (
                 <div className="row-stack" style={{ alignItems: "center", textAlign: "center", padding: "36px 0" }}>
-                  <span className="status-tag primary">Google ADK · Agentic Event Platform</span>
-                  <h1 style={{ margin: "8px 0 6px", fontSize: "28px", fontWeight: 800, letterSpacing: "-0.03em" }}>
-                    어떤 커뮤니티 행사를 준비하고 계신가요?
+                  <h1 style={{ margin: "0 0 20px", fontSize: "26px", fontWeight: 800, letterSpacing: "-0.03em" }}>
+                    무엇을 도와드릴까요?
                   </h1>
-                  <p style={{ margin: "0 0 24px", fontSize: "15px", color: "var(--text-secondary)", maxWidth: "560px", lineHeight: 1.6 }}>
-                    연사 추천, 섭외 메일 발송, 사전 등록 Google Form 및 캘린더 초대, 배너 이미지 생성까지 대화 한 줄로 실행하세요.
-                  </p>
 
                   {/* Full-Width Composer Box */}
                   <div className="row-box" style={{ padding: "18px 20px", textAlign: "left" }}>
