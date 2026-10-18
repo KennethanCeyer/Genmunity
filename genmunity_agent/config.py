@@ -22,7 +22,51 @@ GEMINI_MODEL_CANDIDATES: List[str] = [GEMINI_PRIMARY_MODEL]
 if GEMINI_SECONDARY_MODEL and GEMINI_SECONDARY_MODEL not in GEMINI_MODEL_CANDIDATES:
     GEMINI_MODEL_CANDIDATES.append(GEMINI_SECONDARY_MODEL)
 
-GENMUNITY_BASE_URL = os.environ.get("GENMUNITY_BASE_URL", "http://localhost:8080")
+GEMINI_IMAGE_MODEL = os.environ.get("GENMUNITY_IMAGE_MODEL", "gemini-3.1-flash-image")
+GEMINI_IMAGE_MODEL_CANDIDATES: List[str] = [
+    GEMINI_IMAGE_MODEL,
+    "gemini-2.5-flash-image",
+    "gemini-3-pro-image",
+]
+
+GENMUNITY_BASE_URL = os.environ.get(
+    "GENMUNITY_BASE_URL", "https://genmunity-858263435030.asia-northeast3.run.app"
+)
+
+# Assigned Event Manager Account & GCP Project (Pub/Sub -> Cloud Run Trigger)
+GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "kr-devsummit26icn-501")
+EVENT_MANAGER_ACCOUNT: Dict[str, Any] = {
+    "username": os.environ.get("GCP_USERNAME", "devstar5011@gcplab.me"),
+    "email": os.environ.get("MAIL_ADMIN_EMAIL", os.environ.get("GCP_USERNAME", "devstar5011@gcplab.me")),
+    "password": os.environ.get("GCP_PASSWORD", "ekYg9nana7"),
+    "first_name": os.environ.get("GCP_FIRSTNAME", "Star"),
+    "last_name": os.environ.get("GCP_LASTNAME", "Developer 5011"),
+    "full_name": f"{os.environ.get('GCP_FIRSTNAME', 'Star')} {os.environ.get('GCP_LASTNAME', 'Developer 5011')}",
+    "assigned_project": GCP_PROJECT_ID,
+    "pubsub_topic": f"projects/{GCP_PROJECT_ID}/topics/gmail-push-topic",
+    "pubsub_subscription": f"projects/{GCP_PROJECT_ID}/subscriptions/gmail-push-cloudrun-sub",
+    "cloudrun_webhook_path": "/gmail-webhook",
+}
+
+# Event Organizers for Out-of-Knowledge-Base Inquiry Email Delegation
+EVENT_ORGANIZER_DELEGATE_EMAILS: List[str] = [
+    "sniper45han@gmail.com",
+    "aristojeff@gmail.com",
+]
+EVENT_ORGANIZER_DELEGATES: List[Dict[str, str]] = [
+    {
+        "name": "한성민",
+        "name_en": "Sungmin Han",
+        "email": "sniper45han@gmail.com",
+        "role": "행사 운영자 & AI GDE",
+    },
+    {
+        "name": "박제창",
+        "name_en": "Jechang Park",
+        "email": "aristojeff@gmail.com",
+        "role": "행사 운영자 & Flutter GDE",
+    },
+]
 
 # GDG Domestic Organizers & GDE Shared Google Sheet
 GDG_KOREA_SHEET_ID = "1tC31_8IuWH-2TIeX0t84nyRI0YyaBSI52n97acG32-c"
@@ -62,6 +106,32 @@ HARDCODED_SPEAKERS: List[Dict[str, Any]] = [
     },
 ]
 
+# Default Target Sponsors for DevFest 2026 Sponsorship Proposal Outreach
+HARDCODED_SPONSORS: List[Dict[str, Any]] = [
+    {
+        "sponsor_order": 1,
+        "company_name": "Google Cloud Korea Partner Ecosystem",
+        "contact_name": "한성민",
+        "contact_role": "AI Partnership & Sponsor Lead",
+        "email": "sniper45han@gmail.com",
+        "tier": "Tier 3 (Diamond Sponsor / $5,000)",
+        "amount": "$5,000 (한화 약 680만 원)",
+        "benefits": "키노트 스폰서 세션(15분), 오토웨이타워 메인 홍보 부스 배정, Google Cloud 핸즈온 트랙 공식 로고 노출, 채용/네트워킹 세션 참여",
+        "focus_track": "AI / Agentic Workflow Hands-on",
+    },
+    {
+        "sponsor_order": 2,
+        "company_name": "Flutter & Mobile AI Tech Sponsor",
+        "contact_name": "박제창",
+        "contact_role": "Developer Relations & Sponsorship Manager",
+        "email": "aristojeff@gmail.com",
+        "tier": "Tier 2 (Gold Sponsor / $3,000)",
+        "amount": "$3,000 (한화 약 400만 원)",
+        "benefits": "핸즈온 세션 스폰서 부스 운영, 참가자 웰컴 키트/티셔츠 브랜드 로고 각인, 참가자 대상 채용 홍보 및 뉴스레터 소개",
+        "focus_track": "Flutter & On-Device AI Hands-on",
+    },
+]
+
 # Event Metadata & Community Knowledge Base for SearchAgent RAG
 DEVFEST_EVENT_INFO: Dict[str, Any] = {
     "event_name": "DevFest 2026 Hands-on & Agentic Builderthon",
@@ -71,6 +141,9 @@ DEVFEST_EVENT_INFO: Dict[str, Any] = {
     "event_end_iso": "2026-11-21T18:00:00+09:00",
     "venue": "구글 스타트업 캠퍼스 서울 (Google for Startups Campus Seoul, 대치동 오토웨이타워)",
     "organizer": "GDG Korea CommunityHub & Ops Automation Team",
+    "default_google_form_id": "1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU",
+    "default_google_form_url": "https://docs.google.com/forms/d/e/1FAIpQLSeVYvU9nyRQmdhYgLIO2IwFc7PCZCAd-O43Rl-ltWyvhm8tjA/viewform",
+    "default_google_form_edit_url": "https://docs.google.com/forms/d/1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU/edit",
     "season_deadline": "올해 DevFest 공식 시즌은 2026년 9월 1일부터 12월 31일까지 진행되며, 챕터별 결과 보고서(Advocu) 및 정산 마감은 행사 종료 후 14일 이내(최종 2026년 12월 31일 23:59 KST)입니다.",
     "budget_policy": {
         "summary": "DevFest 2026 챕터 지원 가능 예산은 참석자 규모 및 핸즈온 트랙 여부에 따라 최소 $1,500 ~ 최대 $5,000 (한화 약 200만 원 ~ 680만 원)까지 신청 가능합니다.",

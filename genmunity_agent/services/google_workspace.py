@@ -24,10 +24,13 @@ from genmunity_agent.config import (
     GEMINI_MODEL_CANDIDATES,
     GENMUNITY_BASE_URL,
     HARDCODED_SPEAKERS,
+    HARDCODED_SPONSORS,
     DEVFEST_EVENT_INFO,
     load_runtime_state,
     save_runtime_state,
 )
+from genmunity_agent.services.email_templates import render_genmunity_email_html
+from genmunity_agent.services.event_hub import sync_speaker_form_submission_to_event_state
 
 logger = logging.getLogger("genmunity.workspace")
 
@@ -106,6 +109,40 @@ class GoogleWorkspaceService:
 
         return creds
 
+    def load_forms_credentials(self) -> Optional[Credentials]:
+        """Load Google OAuth credentials with forms.body, drive.file, and calendar scopes."""
+        creds: Optional[Credentials] = None
+        forms_json_str = os.environ.get("FORMS_CREDENTIALS_JSON")
+        if forms_json_str:
+            try:
+                info = json.loads(forms_json_str)
+                creds = Credentials.from_authorized_user_info(info)
+            except Exception as exc:
+                logger.warning(f"Failed to parse FORMS_CREDENTIALS_JSON: {exc}")
+
+        if creds is None:
+            forms_token_path = BASE_DIR / "forms_token.json"
+            if forms_token_path.exists():
+                try:
+                    with open(str(forms_token_path), "r", encoding="utf-8") as f:
+                        info = json.load(f)
+                    creds = Credentials.from_authorized_user_info(info)
+                except Exception as exc:
+                    logger.warning(f"Failed to load forms_token.json: {exc}")
+
+        if creds is None:
+            oauth_creds = self.load_oauth_credentials()
+            if oauth_creds and oauth_creds.scopes and "https://www.googleapis.com/auth/forms.body" in oauth_creds.scopes:
+                creds = oauth_creds
+
+        if creds and (creds.expired or not creds.token) and creds.refresh_token:
+            try:
+                creds.refresh(GoogleAuthRequest())
+            except Exception as exc:
+                logger.warning(f"Forms token refresh warning: {exc}")
+
+        return creds
+
     def get_gmail_service(self):
         creds = self.load_oauth_credentials()
         if not creds:
@@ -113,16 +150,28 @@ class GoogleWorkspaceService:
         return build("gmail", "v1", credentials=creds)
 
     def get_forms_service(self):
-        creds = self.load_oauth_credentials()
+        creds = self.load_forms_credentials() or self.load_oauth_credentials()
         if not creds:
             return None
         return build("forms", "v1", credentials=creds)
 
+    def get_drive_service(self):
+        creds = self.load_forms_credentials() or self.load_oauth_credentials()
+        if not creds:
+            return None
+        return build("drive", "v3", credentials=creds)
+
     def get_calendar_service(self):
-        creds = self.load_oauth_credentials()
+        creds = self.load_forms_credentials() or self.load_oauth_credentials()
         if not creds:
             return None
         return build("calendar", "v3", credentials=creds)
+
+    def get_drive_service(self):
+        creds = self.load_oauth_credentials()
+        if not creds:
+            return None
+        return build("drive", "v3", credentials=creds)
 
     # -------------------------------------------------------------------------
     # Step 2: GenContent + Gmail Speaker Outreach
@@ -213,15 +262,43 @@ class GoogleWorkspaceService:
         subject: str,
         body_text: str,
         ics_content: Optional[str] = None,
+        thread_id: Optional[str] = None,
+        in_reply_to: Optional[str] = None,
+        email_type: str = "outreach",
+        speaker: Optional[Dict[str, Any]] = None,
+        form_url: Optional[str] = None,
+        calendar_link: Optional[str] = None,
+        meet_link: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send an email via Gmail API (with optional RFC-5545 Calendar .ics attachment)."""
+        """Send an email via Gmail API using the Genmunity Email Design System (with optional RFC-5545 Calendar .ics attachment)."""
+        if speaker is None and email_type not in ("sponsor_outreach", "inquiry_reply", "delegation", "organizer_delegation"):
+            for sp in HARDCODED_SPEAKERS:
+                if sp["email"].lower() == (to_email or "").lower() or sp["name"] in (to_name or ""):
+                    speaker = sp
+                    break
+
+        html_body = render_genmunity_email_html(
+            subject=subject,
+            body_text=body_text,
+            email_type=email_type,
+            speaker=speaker,
+            form_url=form_url,
+            calendar_link=calendar_link,
+            meet_link=meet_link,
+        )
+
         gmail = self.get_gmail_service()
         if not gmail:
             return {
                 "status": "simulated_no_credentials",
                 "to": to_email,
+                "to_name": to_name,
                 "subject": subject,
+                "email_type": email_type,
+                "design_system": "genmunity_v2",
                 "message_id": f"sim-{uuid.uuid4().hex[:10]}",
+                "thread_id": thread_id or f"thread-{uuid.uuid4().hex[:8]}",
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
 
         msg = MIMEMultipart("mixed")
@@ -229,25 +306,12 @@ class GoogleWorkspaceService:
         msg["Subject"] = subject
         msg["Date"] = formatdate(localtime=True)
         msg["Message-ID"] = make_msgid(domain="genmunity.gdg.kr")
+        if in_reply_to:
+            msg["In-Reply-To"] = in_reply_to
+            msg["References"] = in_reply_to
 
         alt_part = MIMEMultipart("alternative")
         alt_part.attach(MIMEText(body_text, "plain", "utf-8"))
-
-        html_body = (
-            "<div style='font-family: -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", "
-            "\"Malgun Gothic\", sans-serif; line-height: 1.65; color: #1f2937; max-width: 640px;'>"
-            "<div style='background: linear-gradient(135deg, #4285F4, #34A853); padding: 16px 22px; "
-            "border-radius: 12px 12px 0 0; color: white; font-weight: 700; font-size: 16px;'>"
-            f"Google Developer Groups — {DEVFEST_EVENT_INFO['event_name']}"
-            "</div>"
-            "<div style='border: 1px solid #e5e7eb; border-top: none; padding: 24px; "
-            "border-radius: 0 0 12px 12px; background: #ffffff;'>"
-            + body_text.replace("\n", "<br/>")
-            + "<hr style='margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;'/>"
-            "<div style='font-size: 12px; color: #6b7280;'>"
-            "Sent automatically by <b>Genmunity OpsAgent (Google ADK + Workspace Automation)</b>"
-            "</div></div></div>"
-        )
         alt_part.attach(MIMEText(html_body, "html", "utf-8"))
         msg.attach(alt_part)
 
@@ -265,12 +329,20 @@ class GoogleWorkspaceService:
             msg.attach(ics_attachment)
 
         raw_bytes = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
-        sent = gmail.users().messages().send(userId="me", body={"raw": raw_bytes}).execute()
+        send_body: Dict[str, Any] = {"raw": raw_bytes}
+        if thread_id:
+            send_body["threadId"] = thread_id
+        try:
+            sent = gmail.users().messages().send(userId="me", body=send_body).execute()
+        except Exception:
+            sent = gmail.users().messages().send(userId="me", body={"raw": raw_bytes}).execute()
         return {
             "status": "sent",
             "to": to_email,
             "to_name": to_name,
             "subject": subject,
+            "email_type": email_type,
+            "design_system": "genmunity_v2",
             "message_id": sent.get("id"),
             "thread_id": sent.get("threadId"),
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -287,6 +359,8 @@ class GoogleWorkspaceService:
                 to_name=speaker["name"],
                 subject=draft["subject"],
                 body_text=draft["body"],
+                email_type="outreach",
+                speaker=speaker,
             )
             record = {
                 "speaker_order": speaker["speaker_order"],
@@ -296,6 +370,7 @@ class GoogleWorkspaceService:
                 "speaker_email": speaker["email"],
                 "subject": draft["subject"],
                 "body": draft["body"],
+                "email_type": "outreach",
                 "delivery": send_res,
             }
             results.append(record)
@@ -306,6 +381,151 @@ class GoogleWorkspaceService:
             "status": "completed",
             "total_sent": len(results),
             "outreach_results": results,
+        }
+
+    def generate_sponsor_outreach_email(
+        self, sponsor: Dict[str, Any], custom_context: str = ""
+    ) -> Dict[str, str]:
+        """Use Gemini (GenContent) to craft a personalized DevFest 2026 sponsorship proposal email."""
+        company_name = sponsor.get("company_name", "파트너사")
+        contact_name = sponsor.get("contact_name", "담당자")
+        contact_role = sponsor.get("contact_role", "후원 담당")
+        tier = sponsor.get("tier", "Tier 2 (Gold Sponsor / $3,000)")
+        amount = sponsor.get("amount", "$3,000 (한화 약 400만 원)")
+        benefits = sponsor.get("benefits", "오토웨이타워 홍보 부스 운영, 웰컴 키트 로고 각인, 채용 홍보 세션")
+        focus_track = sponsor.get("focus_track", "AI & Flutter Hands-on Track")
+        event_name = DEVFEST_EVENT_INFO["event_name"]
+        event_date = DEVFEST_EVENT_INFO["event_date"]
+        venue = DEVFEST_EVENT_INFO["venue"]
+
+        default_subject = (
+            f"{DEVFEST_EVENT_INFO['event_tag']} [{company_name}] {contact_name}님, 공식 스폰서십 후원 제안의 건 ({tier})"
+        )
+        default_body = (
+            f"안녕하세요 {company_name} {contact_name} ({contact_role})님,\n\n"
+            f"GDG Korea CommunityHub & DevFest 2026 운영팀(Genmunity OpsAgent)입니다.\n"
+            f"다가오는 {event_date}에 {venue}에서 개최되는 '{event_name}' 행사의 공식 파트너 및 스폰서로 "
+            f"{company_name}와 함께하고자 스폰서십 후원 안내 메일을 드립니다.\n\n"
+            f"■ 행사 및 스폰서십 제안 개요\n"
+            f"- 행사명: {event_name}\n"
+            f"- 일시: {event_date} (13:00 - 18:00 KST)\n"
+            f"- 장소: {venue}\n"
+            f"- 제안 후원 등급: {tier} ({amount})\n"
+            f"- 연계 핸즈온 트랙: {focus_track}\n"
+            f"- 주요 후원 혜택: {benefits}\n\n"
+            f"■ 전체 스폰서십 등급 안내\n"
+            f"- Tier 1 ($1,500 / 약 200만 원): 다과/케이터링 후원, 공식 배너 및 네임택 로고 노출\n"
+            f"- Tier 2 ($3,000 / 약 400만 원): 핸즈온 세션 부스, 연사/참가자 웰컴 티셔츠 로고 각인, 채용 홍보\n"
+            f"- Tier 3 ($5,000 / 약 680만 원): 키노트 스폰서 세션, 메인 홍보 부스, 전 채널 브랜딩 및 네트워킹\n\n"
+            f"후원 참여 의향이나 맞춤형 스폰서십(세금계산서 발행, NDA 체결, 부스 배치 등) 관련 문의 사항을 "
+            f"본 메일의 회신으로 알려주시면 행사 총괄 운영진(한성민 sniper45han@gmail.com, 박제창 aristojeff@gmail.com)과 "
+            f"즉시 연계하여 상세 절차를 안내해 드리겠습니다.\n\n"
+            f"감사합니다.\n"
+            f"GDG Korea DevFest 2026 운영팀 드림"
+        )
+
+        client = self.get_genai_client()
+        if not client:
+            return {"subject": default_subject, "body": default_body}
+
+        prompt = f"""당신은 GDG Korea DevFest 2026 운영팀의 스폰서십/후원 유치 담당 AI 에이전트(OpsAgent)입니다.
+아래 기업 및 담당자 정보를 바탕으로 정중하고 설득력 있는 한국어 스폰서십 후원 제안 이메일 제목(subject)과 본문(body)을 JSON 형식으로 작성하세요.
+
+[스폰서 대상 정보]
+- 기업/파트너명: {company_name}
+- 담당자 성함/직함: {contact_name} ({contact_role})
+- 이메일: {sponsor.get('email', '')}
+- 제안 후원 등급: {tier} ({amount})
+- 연계 트랙: {focus_track}
+- 제공 혜택: {benefits}
+
+[행사 정보]
+- 행사명: {event_name}
+- 태그(제목 맨 앞에 포함 필수): {DEVFEST_EVENT_INFO['event_tag']}
+- 일시: {event_date}
+- 장소: {venue}
+- 예산 및 후원 등급 정책: {DEVFEST_EVENT_INFO['budget_policy']['summary']}
+- 추가 요청 컨텍스트: {custom_context or '후원 등급별 혜택 안내 및 회신 시 운영진(한성민 sniper45han@gmail.com, 박제창 aristojeff@gmail.com)이 계약/세금계산서/부스 절차를 안내한다는 문구 포함'}
+
+반드시 JSON 객체 {{"subject": "...", "body": "..."}} 형태로만 응답하세요.
+제목에는 반드시 '{DEVFEST_EVENT_INFO['event_tag']}' 와 '스폰서' 또는 '후원' 키워드, 그리고 '{contact_name}' 님의 성함이 포함되어야 합니다. 이모지는 사용하지 마세요.
+"""
+        try:
+            resp = self.generate_content_with_fallback(
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3,
+                ),
+            )
+            parsed = json.loads(resp.text)
+            subj = parsed.get("subject") or default_subject
+            if DEVFEST_EVENT_INFO["event_tag"] not in subj:
+                subj = f"{DEVFEST_EVENT_INFO['event_tag']} {subj}"
+            body = parsed.get("body") or default_body
+            return {"subject": subj, "body": body}
+        except Exception as exc:
+            logger.warning(f"Gemini sponsor outreach generation fallback for {company_name}: {exc}")
+            return {"subject": default_subject, "body": default_body}
+
+    def send_sponsor_outreach_emails(
+        self,
+        custom_context: str = "",
+        target_email: Optional[str] = None,
+        company_name: Optional[str] = None,
+        contact_name: Optional[str] = None,
+        tier: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generate personalized DevFest 2026 sponsorship proposal emails and send them via Gmail API."""
+        if target_email:
+            sponsors_to_send = [
+                {
+                    "sponsor_order": 1,
+                    "company_name": company_name or "Enterprise Partner",
+                    "contact_name": contact_name or "스폰서십 담당자",
+                    "contact_role": "Sponsorship & Partnership Lead",
+                    "email": target_email,
+                    "tier": tier or "Tier 3 (Diamond Sponsor / $5,000)",
+                    "amount": "$5,000 (한화 약 680만 원)",
+                    "benefits": "키노트 스폰서 세션, 오토웨이타워 홍보 부스, 웰컴 키트 로고 노출, 채용 네트워킹",
+                    "focus_track": "AI & Flutter Hands-on Track",
+                }
+            ]
+        else:
+            sponsors_to_send = list(HARDCODED_SPONSORS)
+
+        results = []
+        state = load_runtime_state()
+        for sponsor in sponsors_to_send:
+            draft = self.generate_sponsor_outreach_email(sponsor, custom_context=custom_context)
+            send_res = self.send_email(
+                to_email=sponsor["email"],
+                to_name=f"{sponsor['contact_name']} ({sponsor['company_name']})",
+                subject=draft["subject"],
+                body_text=draft["body"],
+                email_type="sponsor_outreach",
+            )
+            record = {
+                "sponsor_order": sponsor["sponsor_order"],
+                "company_name": sponsor["company_name"],
+                "contact_name": sponsor["contact_name"],
+                "contact_role": sponsor["contact_role"],
+                "sponsor_email": sponsor["email"],
+                "tier": sponsor["tier"],
+                "amount": sponsor["amount"],
+                "subject": draft["subject"],
+                "body": draft["body"],
+                "email_type": "sponsor_outreach",
+                "delivery": send_res,
+            }
+            results.append(record)
+            state.setdefault("sponsor_outreach_history", []).append(record)
+
+        save_runtime_state(state)
+        return {
+            "status": "completed",
+            "total_sent": len(results),
+            "sponsor_outreach_results": results,
         }
 
     # -------------------------------------------------------------------------
@@ -338,6 +558,7 @@ class GoogleWorkspaceService:
             return collected
 
         query = (
+            "-label:DRAFT "
             "(from:sniper45han@gmail.com OR to:sniper45han@gmail.com "
             "OR from:aristojeff@gmail.com OR to:aristojeff@gmail.com "
             'OR subject:"DevFest" OR subject:"연사")'
@@ -357,6 +578,9 @@ class GoogleWorkspaceService:
                     .get(userId="me", id=m["id"], format="full")
                     .execute()
                 )
+                labels = msg_detail.get("labelIds", [])
+                if "DRAFT" in labels:
+                    continue
                 payload = msg_detail.get("payload", {})
                 headers = {
                     h["name"].lower(): h["value"] for h in payload.get("headers", [])
@@ -367,17 +591,11 @@ class GoogleWorkspaceService:
                 date_str = headers.get("date", "")
                 snippet = msg_detail.get("snippet", "")
                 body_text = self._extract_plain_text_from_payload(payload) or snippet
-                labels = msg_detail.get("labelIds", [])
 
-                # Match speaker
+                # Match speaker: prioritize subject and recipient first (since authenticated sender may also be a GDE speaker)
                 matched_speaker = None
                 for sp in HARDCODED_SPEAKERS:
-                    if (
-                        sp["email"].lower() in sender.lower()
-                        or sp["email"].lower() in recipient.lower()
-                        or sp["name"] in subject
-                        or sp["name"] in body_text
-                    ):
+                    if sp["name"] in subject or sp["email"].lower() in recipient.lower():
                         matched_speaker = {
                             "name": sp["name"],
                             "role": sp["role"],
@@ -385,10 +603,35 @@ class GoogleWorkspaceService:
                             "order_label": sp["order_label"],
                         }
                         break
+                if matched_speaker is None:
+                    for sp in HARDCODED_SPEAKERS:
+                        if sp["email"].lower() in sender.lower() or sp["name"] in body_text:
+                            matched_speaker = {
+                                "name": sp["name"],
+                                "role": sp["role"],
+                                "email": sp["email"],
+                                "order_label": sp["order_label"],
+                            }
+                            break
+
+                is_outbound_template = any(
+                    kw in subject
+                    for kw in (
+                        DEVFEST_EVENT_INFO["event_tag"],
+                        "연사 초청",
+                        "섭외",
+                        "사전 정보 입력",
+                        "일정 초대",
+                        "[자동 회신]",
+                        "[운영진 이관 안내]",
+                        "[문의 딜리게이션/이관]",
+                    )
+                ) or ("운영팀" in body_text and "Genmunity" in body_text)
 
                 direction = "INBOUND_RECEIVED"
-                if "SENT" in labels and not any(
-                    sp["email"].lower() in sender.lower() for sp in HARDCODED_SPEAKERS
+                if "SENT" in labels and (
+                    is_outbound_template
+                    or not any(sp["email"].lower() in sender.lower() for sp in HARDCODED_SPEAKERS)
                 ):
                     direction = "OUTBOUND_SENT_CONFIRMED"
 
@@ -418,18 +661,29 @@ class GoogleWorkspaceService:
         한성민 (sniper45han@gmail.com) and 박제창 (aristojeff@gmail.com), and cluster them using Gemini.
         """
         emails = self.collect_event_emails_from_gmail(max_results=max_results)
+        state = load_runtime_state()
+        outreach_history = state.get("outreach_history", [])
+        calendar_invites = state.get("calendar_invites", [])
 
         # Build per-speaker receipt & response tracking summary
         speaker_tracking = []
         for sp in HARDCODED_SPEAKERS:
+            em_lower = sp["email"].lower()
             sp_emails = [
                 e
                 for e in emails
-                if (e.get("speaker") and e["speaker"]["email"] == sp["email"])
-                or sp["email"].lower() in (e.get("from", "") + e.get("to", "")).lower()
+                if (e.get("speaker") and e["speaker"]["email"].lower() == em_lower)
+                or (not e.get("speaker") and em_lower in (e.get("from", "") + e.get("to", "")).lower())
             ]
             inbound = [e for e in sp_emails if e["direction"] == "INBOUND_RECEIVED"]
             outbound = [e for e in sp_emails if e["direction"] == "OUTBOUND_SENT_CONFIRMED"]
+            recorded_outbound = sum(
+                1
+                for item in (outreach_history + calendar_invites)
+                if (item.get("speaker_email") or "").lower() == em_lower
+            )
+            outbound_count = max(len(outbound), recorded_outbound)
+            total_related = max(len(sp_emails), outbound_count + len(inbound))
             speaker_tracking.append(
                 {
                     "speaker_order": sp["speaker_order"],
@@ -437,16 +691,16 @@ class GoogleWorkspaceService:
                     "name": sp["name"],
                     "role": sp["role"],
                     "email": sp["email"],
-                    "total_related_emails": len(sp_emails),
-                    "outbound_sent_count": len(outbound),
+                    "total_related_emails": total_related,
+                    "outbound_sent_count": outbound_count,
                     "inbound_reply_count": len(inbound),
-                    "receipt_verified": len(sp_emails) > 0,
+                    "receipt_verified": total_related > 0,
                     "status": (
                         "회신 수신 완료 (Reply Confirmed)"
                         if inbound
                         else (
                             "섭외 메일 발송 및 수신 확인됨 (Outreach Delivered)"
-                            if outbound
+                            if outbound_count > 0
                             else "발송 대기 (Pending Outreach)"
                         )
                     ),
@@ -722,34 +976,104 @@ JSON 스키마:
                     forms_service.forms().batchUpdate(
                         formId=g_form_id, body={"requests": batch_requests}
                     ).execute()
+                    try:
+                        drive_service = self.get_drive_service()
+                        if drive_service:
+                            drive_service.permissions().create(
+                                fileId=g_form_id,
+                                body={"type": "anyone", "role": "reader"},
+                            ).execute()
+                    except Exception as perm_exc:
+                        logger.info(f"Drive public permission update note: {perm_exc}")
+                    try:
+                        forms_service.forms().setPublishSettings(
+                            formId=g_form_id,
+                            body={
+                                "publishSettings": {
+                                    "publishState": {
+                                        "isPublished": True,
+                                        "isAcceptingResponses": True,
+                                    }
+                                }
+                            },
+                        ).execute()
+                    except Exception as pub_exc:
+                        logger.info(f"Forms publish settings note: {pub_exc}")
                     google_form_url = created.get(
                         "responderUri", f"https://docs.google.com/forms/d/{g_form_id}/viewform"
                     )
                     google_form_edit_url = f"https://docs.google.com/forms/d/{g_form_id}/edit"
                     form_id = g_form_id
                     form_provider = "google_forms_api_v1"
+
+                    entry_map: Dict[str, str] = {}
+                    try:
+                        form_meta = forms_service.forms().get(formId=g_form_id).execute()
+                        for item in form_meta.get("items", []):
+                            t_str = (item.get("title") or "").strip()
+                            qid = ((item.get("questionItem") or {}).get("question") or {}).get("questionId")
+                            if not qid:
+                                continue
+                            entry_key = f"entry.{int(qid, 16)}"
+                            if "성함" in t_str:
+                                entry_map["name"] = entry_key
+                            elif "이메일" in t_str:
+                                entry_map["email"] = entry_key
+                            elif "세션" in t_str or "제목" in t_str:
+                                entry_map["session_title"] = entry_key
+                    except Exception as meta_exc:
+                        logger.warning(f"Failed to extract Google Form entry IDs: {meta_exc}")
         except Exception as exc:
             logger.info(
-                f"Google Forms API requires forms.body scope on user OAuth token (fallback active): {exc}"
+                f"Google Forms API live creation fallback to provisioned Google Form: {exc}"
             )
+            entry_map = {}
 
-        hosted_form_url = f"{GENMUNITY_BASE_URL.rstrip('/')}/forms/speaker-onboarding/{form_id}"
-        primary_form_url = google_form_url or hosted_form_url
+        if not google_form_url:
+            form_id = DEVFEST_EVENT_INFO.get(
+                "default_google_form_id", "1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU"
+            )
+            google_form_url = DEVFEST_EVENT_INFO.get(
+                "default_google_form_url",
+                f"https://docs.google.com/forms/d/{form_id}/viewform",
+            )
+            google_form_edit_url = DEVFEST_EVENT_INFO.get(
+                "default_google_form_edit_url",
+                f"https://docs.google.com/forms/d/{form_id}/edit",
+            )
+            form_provider = "google_forms_api_v1"
+            entry_map = {}
+
+        public_base_url = GENMUNITY_BASE_URL.rstrip("/")
+        if "localhost" in public_base_url or "127.0.0.1" in public_base_url:
+            public_base_url = "https://genmunity-858263435030.asia-northeast3.run.app"
+        web_portal_form_url = f"{public_base_url}/forms/speaker-onboarding/{form_id}"
+        hosted_form_url = web_portal_form_url
+        primary_form_url = google_form_url or web_portal_form_url
 
         speaker_personalized_links = []
         for sp in HARDCODED_SPEAKERS:
-            if google_form_url:
-                target_url = google_form_url
+            web_params = urlencode(
+                {
+                    "name": sp["name"],
+                    "email": sp["email"],
+                    "role": f"{sp['role']} ({sp['order_label']})",
+                    "session_title": sp["proposed_topic"],
+                }
+            )
+            web_target_url = f"{web_portal_form_url}?{web_params}"
+            if google_form_url and entry_map:
+                gf_params: Dict[str, str] = {"usp": "pp_url"}
+                if "name" in entry_map:
+                    gf_params[entry_map["name"]] = sp["name"]
+                if "email" in entry_map:
+                    gf_params[entry_map["email"]] = sp["email"]
+                if "session_title" in entry_map:
+                    gf_params[entry_map["session_title"]] = f"[{sp['role']} / {sp['order_label']}] {sp['proposed_topic']}"
+                target_url = f"{google_form_url}?{urlencode(gf_params)}"
             else:
-                params = urlencode(
-                    {
-                        "name": sp["name"],
-                        "email": sp["email"],
-                        "role": f"{sp['role']} ({sp['order_label']})",
-                        "session_title": sp["proposed_topic"],
-                    }
-                )
-                target_url = f"{hosted_form_url}?{params}"
+                target_url = google_form_url or web_target_url
+
             speaker_personalized_links.append(
                 {
                     "speaker_order": sp["speaker_order"],
@@ -758,6 +1082,8 @@ JSON 스키마:
                     "role": sp["role"],
                     "email": sp["email"],
                     "personalized_form_url": target_url,
+                    "google_form_url": google_form_url,
+                    "web_form_url": web_target_url,
                 }
             )
 
@@ -769,6 +1095,7 @@ JSON 스키마:
             "google_form_url": google_form_url,
             "google_form_edit_url": google_form_edit_url,
             "hosted_form_url": hosted_form_url,
+            "web_portal_form_url": web_portal_form_url,
             "fields": DEVFEST_EVENT_INFO["onboarding_form_fields"],
             "speaker_links": speaker_personalized_links,
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -781,32 +1108,94 @@ JSON 스키마:
         return form_record
 
     def fetch_google_form_responses(self, form_id: Optional[str] = None) -> Dict[str, Any]:
-        """Fetch submitted responses from Google Forms API v1 (forms.responses.list)."""
+        """
+        Fetch submitted responses from Google Forms API v1 (forms.responses.list) and local form state,
+        normalize fields (성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호, 세션 제목), and automatically sync
+        them into the main Genmunity event state (`devfest-2026-seoul` & `speaker_onboarding`).
+        """
         state = load_runtime_state()
         target_form_id = form_id or (state.get("latest_form") or {}).get("form_id")
-        if not target_form_id:
-            return {"status": "no_form_id", "responses": []}
+        synced_submissions: List[Dict[str, Any]] = []
+        provider_status = "fetched_from_local_state"
 
-        try:
-            forms_service = self.get_forms_service()
-            if forms_service and not target_form_id.startswith("devfest2026-"):
-                res = forms_service.forms().responses().list(formId=target_form_id).execute()
-                return {
-                    "status": "fetched_from_google_forms_api",
-                    "form_id": target_form_id,
-                    "responses": res.get("responses", []),
-                }
-        except Exception as exc:
-            logger.warning(f"Failed to list Google Form responses for {target_form_id}: {exc}")
+        if target_form_id and not target_form_id.startswith("devfest2026-"):
+            try:
+                forms_service = self.get_forms_service()
+                if forms_service:
+                    # 1. Fetch form metadata to map questionId -> field key
+                    form_meta = forms_service.forms().get(formId=target_form_id).execute()
+                    qid_to_key: Dict[str, str] = {}
+                    for item in form_meta.get("items", []):
+                        title_str = (item.get("title") or "").strip()
+                        q_obj = (item.get("questionItem") or {}).get("question") or {}
+                        qid = q_obj.get("questionId")
+                        if not qid:
+                            continue
+                        if "성함" in title_str or "이름" in title_str:
+                            qid_to_key[qid] = "speaker_name"
+                        elif "이메일" in title_str or "email" in title_str.lower():
+                            qid_to_key[qid] = "email"
+                        elif "연락처" in title_str or "휴대폰" in title_str or "전화" in title_str:
+                            qid_to_key[qid] = "phone"
+                        elif "티셔츠" in title_str or "사이즈" in title_str:
+                            qid_to_key[qid] = "tshirt_size"
+                        elif "차량" in title_str or "주차" in title_str:
+                            qid_to_key[qid] = "vehicle_number"
+                        elif "세션" in title_str or "주제" in title_str or "제목" in title_str:
+                            qid_to_key[qid] = "session_title"
 
+                    # 2. Fetch responses from Google Forms API v1
+                    res = forms_service.forms().responses().list(formId=target_form_id).execute()
+                    raw_responses = res.get("responses", [])
+                    provider_status = "fetched_from_google_forms_api"
+
+                    for idx_r, r_obj in enumerate(raw_responses):
+                        resp_id = r_obj.get("responseId") or f"gform-{idx_r}"
+                        answers_map = r_obj.get("answers") or {}
+                        extracted: Dict[str, Any] = {
+                            "response_id": resp_id,
+                            "form_id": target_form_id,
+                            "source": "google_forms_api_v1",
+                            "submitted_at": r_obj.get("lastSubmittedTime") or r_obj.get("createTime"),
+                        }
+                        # Extract textAnswers by mapped questionId or positional order
+                        ordered_vals: List[str] = []
+                        for qid, ans_payload in answers_map.items():
+                            text_ans = (
+                                ((ans_payload.get("textAnswers") or {}).get("answers") or [{}])[0].get("value")
+                                or ""
+                            )
+                            mapped_key = qid_to_key.get(qid)
+                            if mapped_key:
+                                extracted[mapped_key] = text_ans
+                            ordered_vals.append(text_ans)
+
+                        if not extracted.get("email") and r_obj.get("respondentEmail"):
+                            extracted["email"] = r_obj.get("respondentEmail")
+
+                        # Sync into main event state
+                        sync_res = sync_speaker_form_submission_to_event_state(extracted)
+                        synced_submissions.append(sync_res["submission"])
+            except Exception as exc:
+                logger.warning(f"Failed to list/parse Google Form responses for {target_form_id}: {exc}")
+
+        # Ensure any existing local form submissions are also synced into main event state
+        reloaded_state = load_runtime_state()
+        for local_sub in list(reloaded_state.get("form_submissions", [])):
+            sync_speaker_form_submission_to_event_state(local_sub)
+
+        final_state = load_runtime_state()
+        all_submissions = [
+            s
+            for s in final_state.get("form_submissions", [])
+            if s.get("form_id") == target_form_id or not form_id
+        ]
         return {
-            "status": "fetched_from_local_state",
+            "status": provider_status,
             "form_id": target_form_id,
-            "responses": [
-                s
-                for s in state.get("form_submissions", [])
-                if s.get("form_id") == target_form_id or not form_id
-            ],
+            "total_responses": len(all_submissions),
+            "responses": all_submissions,
+            "speaker_onboarding": final_state.get("speaker_onboarding", {}),
         }
 
     # -------------------------------------------------------------------------
@@ -966,21 +1355,54 @@ JSON 스키마:
             form_record = state["forms"][form_id]
         elif state.get("latest_form"):
             form_record = state["latest_form"]
-        else:
+
+        if (
+            not form_record
+            or not str(form_record.get("google_form_url") or "").startswith("https://docs.google.com/forms/")
+            or "localhost" in json.dumps(form_record)
+        ):
             form_record = self.create_speaker_onboarding_form()
 
         link_map = {
             item["email"]: item["personalized_form_url"]
             for item in form_record.get("speaker_links", [])
         }
+        web_link_map = {
+            item["email"]: item.get("web_form_url")
+            for item in form_record.get("speaker_links", [])
+        }
+
+        public_base_url = GENMUNITY_BASE_URL.rstrip("/")
+        if "localhost" in public_base_url or "127.0.0.1" in public_base_url:
+            public_base_url = "https://genmunity-858263435030.asia-northeast3.run.app"
 
         invite_results = []
         for speaker in HARDCODED_SPEAKERS:
-            personal_form_url = (
-                form_record.get("google_form_url")
-                or link_map.get(speaker["email"])
-                or form_record["primary_form_url"]
+            base_google_form_url = form_record.get("google_form_url") or DEVFEST_EVENT_INFO.get(
+                "default_google_form_url",
+                "https://docs.google.com/forms/d/1c754ukTRC4CvHsemt9HOhqZGoQDaYRxdKxmz7kmt9vU/viewform",
             )
+            candidate_url = (
+                link_map.get(speaker["email"])
+                or base_google_form_url
+                or form_record.get("primary_form_url")
+            )
+            if not str(candidate_url).startswith("https://docs.google.com/forms/"):
+                candidate_url = base_google_form_url
+            personal_form_url = candidate_url
+
+            web_params = urlencode(
+                {
+                    "name": speaker["name"],
+                    "email": speaker["email"],
+                    "role": f"{speaker['role']} ({speaker['order_label']})",
+                    "session_title": speaker["proposed_topic"],
+                }
+            )
+            speaker_web_url = web_link_map.get(speaker["email"]) or (
+                f"{public_base_url}/forms/speaker-onboarding/{form_record['form_id']}?{web_params}"
+            )
+
             cal_event = self.create_google_calendar_event_for_speaker(speaker, personal_form_url)
             cal_html_link = cal_event.get("html_link") or "첨부된 .ics 캘린더 파일 참조"
 
@@ -993,7 +1415,9 @@ JSON 스키마:
                 f"{DEVFEST_EVENT_INFO['event_name']} 연사로 함께해 주셔서 진심으로 감사드립니다!\n"
                 f"원활한 현장 운영과 연사 웰컴 키트 제작, 당일 무료 주차 등록을 위해 아래 발표자 사전 정보 등록 Google Form 작성을 부탁드립니다.\n\n"
                 f"■ 발표자 사전 정보 입력 Google Form 링크\n"
-                f"- {personal_form_url}\n\n"
+                f"- Google Form (사전 정보 자동 입력): {personal_form_url}\n"
+                f"- Google Form (기본 링크): {base_google_form_url}\n"
+                f"- Genmunity 웹 온보딩 포털 (Cloud Run): {speaker_web_url}\n\n"
                 f"■ 필수 입력 항목 안내\n"
                 f"1. 발표자 성함: {speaker['name']}\n"
                 f"2. 이메일: {speaker['email']}\n"
@@ -1021,6 +1445,11 @@ JSON 스키마:
                 subject=subject,
                 body_text=body_text,
                 ics_content=ics_payload,
+                email_type="onboarding_invite",
+                speaker=speaker,
+                form_url=personal_form_url,
+                calendar_link=cal_event.get("html_link"),
+                meet_link=cal_event.get("hangout_link"),
             )
 
             rec = {
@@ -1029,6 +1458,9 @@ JSON 스키마:
                 "speaker_name": speaker["name"],
                 "speaker_role": speaker["role"],
                 "speaker_email": speaker["email"],
+                "subject": subject,
+                "body": body_text,
+                "email_type": "onboarding_invite",
                 "form_provider": form_record.get("form_provider"),
                 "form_url": personal_form_url,
                 "google_form_url": form_record.get("google_form_url"),

@@ -31,13 +31,16 @@ from genmunity_agent.sub_agents.ops_agent import (
     ops_agent,
     get_target_speakers_tool,
     generate_and_send_speaker_emails_tool,
+    generate_and_send_sponsor_emails_tool,
     collect_and_cluster_event_emails_tool,
     create_speaker_onboarding_form_tool,
     invite_speakers_with_form_and_calendar_tool,
     run_ops_full_workflow_tool,
     check_email_receive_trigger_tool,
+    handle_inbound_email_inquiry_tool,
     manage_event_rsvp_tool,
     create_or_modify_event_tool,
+    generate_event_image_tool,
     add_event_knowledge_tool,
 )
 from genmunity_agent.runner import run_agent_chat
@@ -56,8 +59,9 @@ def build_mcp_server():
         instructions=(
             "Genmunity Multi-Agent MCP Server (Google ADK). "
             "Provides CommunityHub Speaker Search, DevFest Schedule/Budget RAG, "
-            "OpsAgent Gmail Outreach/Clustering/Onboarding Form/Calendar Invite, "
-            "Event RSVP Management, and Gemini Vision Photo Attendee Tracking."
+            "OpsAgent Gmail Speaker & Sponsor Outreach/Clustering/Onboarding Form/Calendar Invite, "
+            "Pub/Sub -> Cloud Run Inbound Inquiry KB Auto-Reply & Organizer Delegation (sniper45han@gmail.com, aristojeff@gmail.com), "
+            "Event RSVP Management, Gemini Image Generation, and Gemini Vision Photo Attendee Tracking."
         ),
     )
     # Register granular tools on the FastMCP server so external MCP clients can call either RootAgent or specific tools
@@ -66,11 +70,14 @@ def build_mcp_server():
     mcp_srv.add_tool(slack_search_tool, name="slack_search_tool", description="Search GDG/GDE Slack threads.")
     mcp_srv.add_tool(get_target_speakers_tool, name="get_target_speakers_tool", description="Get matched DevFest speakers (한성민 AI GDE, 박제창 Flutter GDE).")
     mcp_srv.add_tool(generate_and_send_speaker_emails_tool, name="generate_and_send_speaker_emails_tool", description="Generate and send speaker invitation emails via Gmail.")
+    mcp_srv.add_tool(generate_and_send_sponsor_emails_tool, name="generate_and_send_sponsor_emails_tool", description="Generate and send sponsor sponsorship proposal emails via Gmail.")
     mcp_srv.add_tool(collect_and_cluster_event_emails_tool, name="collect_and_cluster_event_emails_tool", description="Collect and cluster event-related Gmail threads.")
     mcp_srv.add_tool(create_speaker_onboarding_form_tool, name="create_speaker_onboarding_form_tool", description="Create Speaker Onboarding Form (name, email, phone, t-shirt, vehicle number).")
     mcp_srv.add_tool(invite_speakers_with_form_and_calendar_tool, name="invite_speakers_with_form_and_calendar_tool", description="Send Onboarding Form link and .ics Calendar invite to speakers.")
+    mcp_srv.add_tool(handle_inbound_email_inquiry_tool, name="handle_inbound_email_inquiry_tool", description="Auto-reply to inbound event inquiries from Event Knowledge Base or delegate out-of-KB inquiries to sniper45han@gmail.com and aristojeff@gmail.com.")
     mcp_srv.add_tool(manage_event_rsvp_tool, name="manage_event_rsvp_tool", description="Create, modify, or cancel an event RSVP.")
     mcp_srv.add_tool(create_or_modify_event_tool, name="create_or_modify_event_tool", description="Create or modify a GDG/DevFest event.")
+    mcp_srv.add_tool(generate_event_image_tool, name="generate_event_image_tool", description="Generate an event banner or RSVP illustration using Gemini Image Generation.")
     mcp_srv.add_tool(add_event_knowledge_tool, name="add_event_knowledge_tool", description="Add an entry to the Event Knowledge Base.")
     return mcp_srv
 
@@ -159,6 +166,20 @@ MCP_TOOLS_CATALOG: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "generate_and_send_sponsor_emails_tool",
+        "description": "[OpsAgent] Generate personalized sponsor sponsorship proposal emails with Gemini and send via Gmail API.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "custom_context": {"type": "string"},
+                "target_email": {"type": "string"},
+                "company_name": {"type": "string"},
+                "contact_name": {"type": "string"},
+                "tier": {"type": "string"},
+            },
+        },
+    },
+    {
         "name": "collect_and_cluster_event_emails_tool",
         "description": "[OpsAgent] Collect event-related emails from Gmail and cluster them semantically with Gemini.",
         "inputSchema": {
@@ -231,6 +252,21 @@ MCP_TOOLS_CATALOG: List[Dict[str, Any]] = [
             "required": ["title", "content"],
         },
     },
+    {
+        "name": "handle_inbound_email_inquiry_tool",
+        "description": "[OpsAgent] Evaluate an inbound email inquiry to devstar5011@gcplab.me (Project: kr-devsummit26icn-501). Auto-replies using the Event Knowledge Base or delegates out-of-KB inquiries to sniper45han@gmail.com and aristojeff@gmail.com.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sender_email": {"type": "string", "description": "Sender email address"},
+                "sender_name": {"type": "string", "description": "Sender name"},
+                "subject": {"type": "string", "description": "Inquiry email subject"},
+                "inquiry_body": {"type": "string", "description": "Inquiry email body"},
+                "event_id": {"type": "string", "default": "devfest-2026-seoul"},
+            },
+            "required": ["sender_email", "subject", "inquiry_body"],
+        },
+    },
 ]
 
 
@@ -252,6 +288,14 @@ async def execute_mcp_tool_call(tool_name: str, arguments: Dict[str, Any]) -> An
         return get_target_speakers_tool()
     if tool_name == "generate_and_send_speaker_emails_tool":
         return generate_and_send_speaker_emails_tool(custom_context=args.get("custom_context", ""))
+    if tool_name == "generate_and_send_sponsor_emails_tool":
+        return generate_and_send_sponsor_emails_tool(
+            custom_context=args.get("custom_context", ""),
+            target_email=args.get("target_email", ""),
+            company_name=args.get("company_name", ""),
+            contact_name=args.get("contact_name", ""),
+            tier=args.get("tier", ""),
+        )
     if tool_name == "collect_and_cluster_event_emails_tool":
         return collect_and_cluster_event_emails_tool(max_results=int(args.get("max_results", 20)))
     if tool_name == "create_speaker_onboarding_form_tool":
@@ -262,6 +306,14 @@ async def execute_mcp_tool_call(tool_name: str, arguments: Dict[str, Any]) -> An
         return run_ops_full_workflow_tool(custom_context=args.get("custom_context", ""))
     if tool_name == "check_email_receive_trigger_tool":
         return check_email_receive_trigger_tool(force_process_latest=bool(args.get("force_process_latest", False)))
+    if tool_name == "handle_inbound_email_inquiry_tool":
+        return handle_inbound_email_inquiry_tool(
+            sender_email=args.get("sender_email", "attendee@gdg.kr"),
+            sender_name=args.get("sender_name", "문의자"),
+            subject=args.get("subject", "DevFest 문의"),
+            inquiry_body=args.get("inquiry_body", ""),
+            event_id=args.get("event_id", "devfest-2026-seoul"),
+        )
     if tool_name == "manage_event_rsvp_tool":
         return manage_event_rsvp_tool(
             attendee_name=args.get("attendee_name", "참가자"),

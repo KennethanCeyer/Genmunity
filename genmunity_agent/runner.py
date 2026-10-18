@@ -1,3 +1,4 @@
+import re
 import uuid
 import logging
 from typing import Dict, Any, List, Optional
@@ -115,7 +116,8 @@ async def run_agent_chat(
     if last_exc is not None:
         raise last_exc
 
-    reply = "\n\n".join(final_texts) if final_texts else "요청하신 작업을 처리했습니다."
+    raw_reply = "\n\n".join(final_texts) if final_texts else "요청하신 작업을 처리했습니다."
+    reply = re.sub(r"[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F]", "", raw_reply)
     state = load_runtime_state()
     return {
         "session_id": sid,

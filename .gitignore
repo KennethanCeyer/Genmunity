@@ -12,12 +12,16 @@ htmlcov/
 .env
 credentials.json
 token.json
+forms_token.json
 client_secret*.json
 service_account*.json
 
 # Runtime state & logs
 data/runtime_state.json
 data/mail_admin_registry.json
+data/community_hub_cookies.json
+data/*.json
+data/uploads/
 *.log
 
 # OS files

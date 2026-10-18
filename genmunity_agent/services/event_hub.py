@@ -13,6 +13,9 @@ from genmunity_agent.config import (
     BASE_DIR,
     GEMINI_MODEL,
     GEMINI_MODEL_CANDIDATES,
+    GEMINI_IMAGE_MODEL,
+    GEMINI_IMAGE_MODEL_CANDIDATES,
+    GDG_KOREA_SHEET_URL,
     HARDCODED_SPEAKERS,
     DEVFEST_EVENT_INFO,
     load_runtime_state,
@@ -221,12 +224,92 @@ def _get_genai_client() -> Optional[genai.Client]:
     return genai.Client(api_key=api_key)
 
 
+def _build_default_rsvp_wysiwyg_html(ev: Dict[str, Any]) -> str:
+    title = ev.get("title", "GDG Community Event")
+    date_str = ev.get("date", "2026-11-21")
+    time_str = ev.get("time", "13:00 - 18:00 KST")
+    venue_str = ev.get("venue", "구글 스타트업 캠퍼스 서울")
+    desc = ev.get("description", "")
+    speakers = ev.get("speakers") or HARDCODED_SPEAKERS
+    sp_items = "".join(
+        f"<li><strong>{s.get('name')} ({s.get('role')})</strong> — {s.get('proposed_topic', 'Hands-on Session')} <code>{s.get('session_time', '')}</code></li>"
+        for s in speakers
+    )
+    return (
+        f"<h3>{title} — 참가 신청 (RSVP) 안내</h3>"
+        f"<p>{desc}</p>"
+        f"<blockquote><strong>일시:</strong> {date_str} ({time_str})<br/>"
+        f"<strong>장소:</strong> {venue_str}</blockquote>"
+        f"<h4>주요 핸즈온 세션 라인업</h4>"
+        f"<ul>{sp_items}</ul>"
+        f"<h4>참가자 사전 안내 사항</h4>"
+        f"<ul>"
+        f"<li>개인 노트북 및 충전기를 지참해 주세요 (현장 Google Cloud &amp; Gemini API 크레딧 제공).</li>"
+        f"<li>오토웨이타워 주차 지원 및 식단(일반/비건) 옵션은 우측 RSVP 등록 패스에서 즉시 선택·수정할 수 있습니다.</li>"
+        f"</ul>"
+    )
+
+
+def _enrich_event_defaults(ev: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    if not ev.get("rsvp_content_html"):
+        ev["rsvp_content_html"] = _build_default_rsvp_wysiwyg_html(ev)
+    ev.setdefault("generated_images", [])
+    ev.setdefault("banner_url", ev["generated_images"][0]["url"] if ev["generated_images"] else "")
+
+    latest_form = state.get("latest_form") or {}
+    form_id = latest_form.get("form_id") or "devfest-2026-onboarding"
+    primary_form_url = latest_form.get("primary_form_url") or f"/forms/speaker-onboarding/{form_id}"
+    google_form_edit_url = latest_form.get("edit_url") or ""
+
+    cal_invites = state.get("calendar_invites") or []
+    cal_html_link = ""
+    for inv in reversed(cal_invites):
+        if inv.get("calendar_html_link"):
+            cal_html_link = inv["calendar_html_link"]
+            break
+    if not cal_html_link:
+        from urllib.parse import quote
+        cal_html_link = (
+            "https://calendar.google.com/calendar/render?action=TEMPLATE"
+            f"&text={quote(ev.get('title', 'DevFest 2026'))}"
+            f"&location={quote(ev.get('venue', ''))}"
+            f"&details={quote(ev.get('description', ''))}"
+        )
+
+    from urllib.parse import quote as url_quote
+    gmail_search_url = f"https://mail.google.com/mail/u/0/#search/{url_quote(ev.get('tag', 'DevFest'))}"
+    gmail_compose_url = (
+        "https://mail.google.com/mail/?view=cm&fs=1"
+        f"&to=sniper45han@gmail.com,aristojeff@gmail.com"
+        f"&su={url_quote(ev.get('tag', '[DevFest 2026]') + ' ' + ev.get('title', ''))}"
+    )
+
+    ev["workspace_links"] = {
+        "gmail_inbox_url": gmail_search_url,
+        "gmail_compose_url": gmail_compose_url,
+        "calendar_url": cal_html_link,
+        "form_url": primary_form_url,
+        "form_local_url": f"/forms/speaker-onboarding/{form_id}",
+        "google_form_edit_url": google_form_edit_url,
+        "sheet_url": GDG_KOREA_SHEET_URL,
+    }
+    return ev
+
+
 def ensure_events_initialized() -> List[Dict[str, Any]]:
     state = load_runtime_state()
     events = state.get("events")
+    changed = False
     if not events or not isinstance(events, list):
         import copy
         events = copy.deepcopy(DEFAULT_EVENTS)
+        changed = True
+    for ev in events:
+        had_html = bool(ev.get("rsvp_content_html"))
+        _enrich_event_defaults(ev, state)
+        if not had_html:
+            changed = True
+    if changed:
         state["events"] = events
         save_runtime_state(state)
     return events
@@ -258,6 +341,8 @@ def create_or_modify_event(
     budget: Optional[str] = None,
     description: Optional[str] = None,
     category: Optional[str] = None,
+    rsvp_content_html: Optional[str] = None,
+    banner_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new community event or modify an existing event."""
     state = load_runtime_state()
@@ -295,6 +380,8 @@ def create_or_modify_event(
             "budget": budget or "$1,500 (Tier 1)",
             "organizer": "GDG Korea Organizer Team",
             "description": description or "Genmunity 에이전트를 통해 생성된 신규 커뮤니티 이벤트입니다.",
+            "banner_url": banner_url or "",
+            "generated_images": [],
             "speakers": HARDCODED_SPEAKERS,
             "rsvps": [],
             "photos": [],
@@ -314,6 +401,8 @@ def create_or_modify_event(
                 {"step": "참가자 RSVP 모집", "done": False},
             ],
         }
+        target["rsvp_content_html"] = rsvp_content_html or _build_default_rsvp_wysiwyg_html(target)
+        _enrich_event_defaults(target, state)
         events.insert(0, target)
     else:
         if title:
@@ -334,6 +423,11 @@ def create_or_modify_event(
             target["description"] = description
         if category:
             target["category"] = category
+        if rsvp_content_html is not None:
+            target["rsvp_content_html"] = rsvp_content_html
+        if banner_url is not None:
+            target["banner_url"] = banner_url
+        _enrich_event_defaults(target, state)
 
     state["events"] = events
     save_runtime_state(state)
@@ -345,6 +439,169 @@ def create_or_modify_event(
         details={"action": action, "event_id": target["event_id"], "status": target["status"]},
     )
     return {"action": action, "event": target}
+
+
+def save_event_wysiwyg_content(
+    event_id: str,
+    rsvp_content_html: str,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    banner_url: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Save rich WYSIWYG HTML content and optional banner/title updates for an event's RSVP detail page."""
+    state = load_runtime_state()
+    events = ensure_events_initialized()
+    target_ev = get_event_by_id(event_id) or events[0]
+
+    for ev in events:
+        if ev["event_id"] == target_ev["event_id"]:
+            ev["rsvp_content_html"] = rsvp_content_html
+            if title:
+                ev["title"] = title
+            if description:
+                ev["description"] = description
+            if banner_url is not None:
+                ev["banner_url"] = banner_url
+            ev["wysiwyg_updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            _enrich_event_defaults(ev, state)
+            target_ev = ev
+            break
+
+    state["events"] = events
+    save_runtime_state(state)
+
+    record_agent_trace(
+        agent_name="OpsAgent",
+        capability="EventWysiwygEditor",
+        summary=f"[{target_ev['title']}] 이벤트 상세 & RSVP WYSIWYG 문서 저장 완료",
+        details={"event_id": target_ev["event_id"], "banner_url": target_ev.get("banner_url")},
+    )
+    return {
+        "status": "saved",
+        "event_id": target_ev["event_id"],
+        "event": target_ev,
+    }
+
+
+def generate_event_image_with_gemini(
+    event_id: str = "devfest-2026-seoul",
+    prompt: str = "",
+    style: str = "Modern Minimal Tech",
+    set_as_banner: bool = True,
+) -> Dict[str, Any]:
+    """
+    Generate an event poster, banner, or RSVP illustration using Gemini Image Generation
+    (`gemini-3.1-flash-image` / `gemini-2.5-flash-image` / `gemini-3-pro-image`) and save it to UPLOADS_DIR.
+    Includes a deterministic Pillow graphic fallback if offline.
+    """
+    state = load_runtime_state()
+    events = ensure_events_initialized()
+    target_ev = get_event_by_id(event_id) or events[0]
+
+    clean_prompt = (prompt or "").strip() or (
+        f"{target_ev['title']} — GDG Korea Developer Conference & Hands-on Workshop Banner"
+    )
+    full_prompt = (
+        f"Create a clean, modern, high-resolution event key visual banner for '{target_ev['title']}'. "
+        f"Visual style: {style}, minimalist monochrome & primary royal blue (#2563EB) accents, "
+        f"sleek geometric UI/UX aesthetic, developer community conference vibe. "
+        f"User prompt details: {clean_prompt}"
+    )
+
+    image_id = f"genimg-{uuid.uuid4().hex[:8]}"
+    image_bytes: Optional[bytes] = None
+    mime_type = "image/jpeg"
+    used_model = GEMINI_IMAGE_MODEL
+
+    client = _get_genai_client()
+    if client:
+        for candidate_model in GEMINI_IMAGE_MODEL_CANDIDATES:
+            try:
+                resp = client.models.generate_content(
+                    model=candidate_model,
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["TEXT", "IMAGE"],
+                    ),
+                )
+                if resp and resp.candidates:
+                    for part in resp.candidates[0].content.parts:
+                        if getattr(part, "inline_data", None) and part.inline_data.data:
+                            image_bytes = part.inline_data.data
+                            mime_type = part.inline_data.mime_type or "image/jpeg"
+                            used_model = candidate_model
+                            break
+                if image_bytes:
+                    break
+            except Exception as exc:
+                logger.warning(f"Gemini image generation candidate {candidate_model} warning: {exc}")
+
+    # Fallback: generate a clean modern graphic banner with Pillow if offline or rate-limited
+    if not image_bytes:
+        from io import BytesIO
+        from PIL import Image, ImageDraw
+
+        img = Image.new("RGB", (1200, 630), color=(248, 250, 252))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([(0, 0), (1200, 14)], fill=(37, 99, 235))
+        draw.rectangle([(48, 48), (1152, 582)], outline=(226, 232, 240), width=2)
+        draw.ellipse([(820, -80), (1280, 380)], fill=(239, 246, 255))
+        draw.ellipse([(920, 220), (1220, 520)], fill=(37, 99, 235))
+        draw.rectangle([(88, 96), (260, 138)], fill=(37, 99, 235))
+        draw.rectangle([(88, 180), (760, 236)], fill=(15, 23, 42))
+        draw.rectangle([(88, 260), (620, 298)], fill=(100, 116, 139))
+        draw.rectangle([(88, 340), (480, 368)], fill=(203, 213, 225))
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        image_bytes = buf.getvalue()
+        mime_type = "image/jpeg"
+        used_model = f"{GEMINI_IMAGE_MODEL} (studio-render)"
+
+    ext = ".png" if "png" in mime_type.lower() else ".jpg"
+    saved_filename = f"{image_id}{ext}"
+    saved_path = UPLOADS_DIR / saved_filename
+    with open(saved_path, "wb") as f:
+        f.write(image_bytes)
+
+    image_url = f"/api/uploads/{saved_filename}"
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    img_record = {
+        "image_id": image_id,
+        "url": image_url,
+        "prompt": clean_prompt,
+        "style": style,
+        "model": used_model,
+        "mime_type": mime_type,
+        "created_at": now_iso,
+    }
+
+    for ev in events:
+        if ev["event_id"] == target_ev["event_id"]:
+            ev.setdefault("generated_images", []).insert(0, img_record)
+            if set_as_banner or not ev.get("banner_url"):
+                ev["banner_url"] = image_url
+            _enrich_event_defaults(ev, state)
+            target_ev = ev
+            break
+
+    state["events"] = events
+    save_runtime_state(state)
+
+    record_agent_trace(
+        agent_name="OpsAgent",
+        capability="GeminiImageGeneration",
+        summary=f"[{target_ev['title']}] Gemini 이미지 생성 완료 ({used_model}): '{clean_prompt[:45]}'",
+        details=img_record,
+    )
+
+    return {
+        "status": "generated",
+        "event_id": target_ev["event_id"],
+        "event_title": target_ev["title"],
+        "image": img_record,
+        "banner_url": target_ev.get("banner_url"),
+    }
+
 
 
 def manage_event_rsvp(
@@ -386,10 +643,23 @@ def manage_event_rsvp(
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     act = (action or "create").lower()
 
-    if act in ("cancel", "delete", "remove") and existing:
+    if act in ("cancel", "delete", "remove"):
+        if existing is None:
+            return {
+                "status": "not_found",
+                "action": "not_found",
+                "message": f"취소할 RSVP 내역을 찾을 수 없습니다: {attendee_name} ({attendee_email})",
+                "event_id": target_ev["event_id"],
+                "event_title": target_ev["title"],
+                "rsvp": None,
+                "total_rsvp_count": target_ev.get("rsvp_count", len(rsvps)),
+            }
+        was_cancelled = existing.get("status") == "cancelled"
         existing["status"] = "cancelled"
+        existing["updated_at"] = now_iso
         existing_action = "cancelled"
-        target_ev["rsvp_count"] = max(0, int(target_ev.get("rsvp_count", len(rsvps))) - 1)
+        if not was_cancelled:
+            target_ev["rsvp_count"] = max(0, int(target_ev.get("rsvp_count", len(rsvps))) - 1)
         record_obj = existing
     elif existing is not None or act in ("modify", "update", "edit"):
         if existing is None:
@@ -404,9 +674,11 @@ def manage_event_rsvp(
                 "registered_at": now_iso,
             }
             rsvps.insert(0, existing)
-            target_ev["rsvp_count"] = int(target_ev.get("rsvp_count", 0)) + 1
+            if existing["status"] != "cancelled":
+                target_ev["rsvp_count"] = int(target_ev.get("rsvp_count", 0)) + 1
             existing_action = "created"
         else:
+            prev_status = existing.get("status", "confirmed")
             if attendee_name:
                 existing["name"] = attendee_name
             if attendee_email:
@@ -419,6 +691,13 @@ def manage_event_rsvp(
                 existing["dietary"] = dietary
             if status:
                 existing["status"] = status
+            elif act == "create" and prev_status == "cancelled":
+                existing["status"] = "confirmed"
+            new_status = existing.get("status", "confirmed")
+            if prev_status == "cancelled" and new_status != "cancelled":
+                target_ev["rsvp_count"] = int(target_ev.get("rsvp_count", 0)) + 1
+            elif prev_status != "cancelled" and new_status == "cancelled":
+                target_ev["rsvp_count"] = max(0, int(target_ev.get("rsvp_count", len(rsvps))) - 1)
             existing["updated_at"] = now_iso
             existing_action = "modified"
         record_obj = existing
@@ -434,7 +713,8 @@ def manage_event_rsvp(
             "registered_at": now_iso,
         }
         rsvps.insert(0, new_rsvp)
-        target_ev["rsvp_count"] = int(target_ev.get("rsvp_count", 0)) + 1
+        if new_rsvp["status"] != "cancelled":
+            target_ev["rsvp_count"] = int(target_ev.get("rsvp_count", 0)) + 1
         existing_action = "created"
         record_obj = new_rsvp
 
@@ -465,22 +745,36 @@ def add_event_knowledge_entry(
     category: str = "Event Note",
     source: str = "Organizer / Agent",
 ) -> Dict[str, Any]:
-    """Add a structured knowledge base item to an event so SearchAgent can retrieve it via RAG."""
+    """Add or update a structured knowledge base item on an event so SearchAgent can retrieve it via RAG."""
     state = load_runtime_state()
     events = ensure_events_initialized()
     target_ev = get_event_by_id(event_id) or events[0]
 
+    normalized_title = (title or "이벤트 운영 지식 노트").strip()
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     entry = {
         "kb_id": f"kb-{uuid.uuid4().hex[:6]}",
-        "title": title or "이벤트 운영 지식 노트",
+        "title": normalized_title,
         "category": category or "General",
         "content": content,
         "source": source,
-        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "updated_at": now_iso,
     }
     for ev in events:
         if ev["event_id"] == target_ev["event_id"]:
-            ev.setdefault("knowledge_base", []).insert(0, entry)
+            kb_list = ev.setdefault("knowledge_base", [])
+            existing_idx = next(
+                (
+                    idx
+                    for idx, item in enumerate(kb_list)
+                    if (item.get("title") or "").strip().lower() == normalized_title.lower()
+                ),
+                None,
+            )
+            if existing_idx is not None:
+                entry["kb_id"] = kb_list[existing_idx].get("kb_id", entry["kb_id"])
+                kb_list.pop(existing_idx)
+            kb_list.insert(0, entry)
             target_ev = ev
             break
 
@@ -594,8 +888,18 @@ JSON 스키마:
 
     for ev in events:
         if ev["event_id"] == target_ev["event_id"]:
-            ev.setdefault("photos", []).insert(0, photo_record)
-            total_photo_count = sum(int(p.get("detected_headcount", 0)) for p in ev["photos"])
+            photos_list = ev.setdefault("photos", [])
+            # Deduplicate identical filename + caption entries so repeated runs update rather than flood
+            photos_list[:] = [
+                p
+                for p in photos_list
+                if not (
+                    p.get("filename") == filename
+                    and (p.get("caption") or "") == (caption or filename)
+                )
+            ]
+            photos_list.insert(0, photo_record)
+            total_photo_count = sum(int(p.get("detected_headcount", 0)) for p in photos_list)
             ev["tracked_photo_attendees"] = total_photo_count
             kb_entry = {
                 "kb_id": f"kb-{photo_id}",
@@ -609,7 +913,16 @@ JSON 스키마:
                 "source": "Gemini 4.0 Argon Vision Tracker",
                 "updated_at": now_iso,
             }
-            ev.setdefault("knowledge_base", []).insert(0, kb_entry)
+            kb_list = ev.setdefault("knowledge_base", [])
+            kb_list[:] = [
+                k
+                for k in kb_list
+                if not (
+                    k.get("category") == "Photo & Attendance Analytics"
+                    and f"({filename})" in (k.get("title") or "")
+                )
+            ]
+            kb_list.insert(0, kb_entry)
             for item in ev.get("checklist", []):
                 if "사진" in item.get("step", ""):
                     item["done"] = True
@@ -682,8 +995,310 @@ def search_all_event_knowledge(query: str = "") -> Dict[str, Any]:
                     }
                 )
 
+    # Prioritize core seed knowledge base items alongside recent dynamic entries
+    core_prefixes = ("kb-devfest-", "kb-studyjam-", "kb-flutter-", "kb-onboarding-")
+    core_items = [item for item in matched_kb if str(item.get("kb_id", "")).startswith(core_prefixes)]
+    dynamic_items = [item for item in matched_kb if not str(item.get("kb_id", "")).startswith(core_prefixes)]
+    prioritized_kb = core_items + dynamic_items
+
     return {
         "query": query,
         "events_overview": event_summaries,
-        "knowledge_base_matches": matched_kb[:15],
+        "knowledge_base_matches": prioritized_kb[:25],
     }
+
+
+def sync_speaker_form_submission_to_event_state(submission: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Synchronize a received Speaker Onboarding Form response (from Google Forms API v1 or Genmunity Form)
+    directly into the main Genmunity runtime state and the primary DevFest event state:
+    - Updates `state["form_submissions"]` (deduplicated)
+    - Updates `state["speaker_onboarding"]` per speaker
+    - Updates `devfest-2026-seoul` event's speaker records, overall event status, checklist, and knowledge base
+    """
+    state = load_runtime_state()
+    events = ensure_events_initialized()
+
+    email_raw = (submission.get("email") or "").strip().lower()
+    name_raw = (submission.get("speaker_name") or "").strip()
+
+    matched_sp = None
+    for sp in HARDCODED_SPEAKERS:
+        if sp["email"].lower() == email_raw or (name_raw and sp["name"] in name_raw):
+            matched_sp = sp
+            break
+
+    speaker_email = matched_sp["email"] if matched_sp else (submission.get("email") or "unknown@gdg.kr")
+    speaker_name = matched_sp["name"] if matched_sp else (name_raw or "연사자")
+    speaker_role = matched_sp["role"] if matched_sp else submission.get("role", "Speaker")
+    order_label = matched_sp["order_label"] if matched_sp else "연사자"
+
+    normalized = {
+        "response_id": submission.get("response_id") or f"resp-{uuid.uuid4().hex[:8]}",
+        "form_id": submission.get("form_id") or (state.get("latest_form") or {}).get("form_id") or "devfest2026-form",
+        "speaker_name": speaker_name,
+        "speaker_role": speaker_role,
+        "order_label": order_label,
+        "email": speaker_email,
+        "phone": (submission.get("phone") or "").strip() or "010-0000-0000",
+        "tshirt_size": (submission.get("tshirt_size") or "L (100)").strip(),
+        "vehicle_number": (submission.get("vehicle_number") or "없음").strip(),
+        "session_title": (
+            (submission.get("session_title") or "").strip()
+            or (matched_sp["proposed_topic"] if matched_sp else "DevFest 2026 Hands-on Session")
+        ),
+        "source": submission.get("source") or "google_forms_sync",
+        "submitted_at": submission.get("submitted_at") or datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+
+    # 1. Deduplicate and update state["form_submissions"]
+    submissions: List[Dict[str, Any]] = state.get("form_submissions", [])
+    replaced = False
+    for idx, existing in enumerate(submissions):
+        if (
+            existing.get("response_id") == normalized["response_id"]
+            or (existing.get("email", "").lower() == speaker_email.lower())
+        ):
+            submissions[idx] = normalized
+            replaced = True
+            break
+    if not replaced:
+        submissions.insert(0, normalized)
+    state["form_submissions"] = submissions
+
+    # 2. Update state["speaker_onboarding"] map
+    onboarding_map: Dict[str, Any] = state.get("speaker_onboarding", {})
+    onboarding_map[speaker_email.lower()] = {
+        "speaker_name": speaker_name,
+        "speaker_role": speaker_role,
+        "order_label": order_label,
+        "email": speaker_email,
+        "onboarding_status": "completed",
+        "onboarding_label": "Form 응답 완료 (주차·웰컴키트 확정)",
+        "phone": normalized["phone"],
+        "tshirt_size": normalized["tshirt_size"],
+        "vehicle_number": normalized["vehicle_number"],
+        "session_title": normalized["session_title"],
+        "response_id": normalized["response_id"],
+        "form_id": normalized["form_id"],
+        "source": normalized["source"],
+        "submitted_at": normalized["submitted_at"],
+    }
+    state["speaker_onboarding"] = onboarding_map
+
+    # 3. Synchronize into main DevFest event ("devfest-2026-seoul")
+    completed_count = 0
+    total_speakers = len(HARDCODED_SPEAKERS)
+    for sp in HARDCODED_SPEAKERS:
+        if onboarding_map.get(sp["email"].lower(), {}).get("onboarding_status") == "completed":
+            completed_count += 1
+
+    for ev in events:
+        if ev["event_id"] == "devfest-2026-seoul":
+            # Enrich event speakers list
+            enriched_speakers = []
+            for sp in HARDCODED_SPEAKERS:
+                sp_copy = dict(sp)
+                ob = onboarding_map.get(sp["email"].lower())
+                if ob and ob.get("onboarding_status") == "completed":
+                    sp_copy["onboarding_status"] = "completed"
+                    sp_copy["onboarding_label"] = "온보딩 완료 (Form 제출됨)"
+                    sp_copy["phone"] = ob.get("phone")
+                    sp_copy["tshirt_size"] = ob.get("tshirt_size")
+                    sp_copy["vehicle_number"] = ob.get("vehicle_number")
+                    sp_copy["confirmed_topic"] = ob.get("session_title")
+                    sp_copy["submitted_at"] = ob.get("submitted_at")
+                else:
+                    sp_copy["onboarding_status"] = "pending"
+                    sp_copy["onboarding_label"] = "Form 응답 대기 중"
+                enriched_speakers.append(sp_copy)
+            ev["speakers"] = enriched_speakers
+            ev["speaker_onboarding_completed"] = completed_count
+            ev["speaker_onboarding_total"] = total_speakers
+
+            if completed_count >= total_speakers:
+                ev["status"] = f"연사 온보딩 완료 ({completed_count}/{total_speakers}명 확정 · 행사 준비 완료)"
+                ev["status_code"] = "ready"
+            elif completed_count > 0:
+                ev["status"] = f"진행 예정 (연사 온보딩 {completed_count}/{total_speakers}명 완료)"
+                ev["status_code"] = "onboarding"
+
+            # Update checklist step for form response
+            checklist = ev.setdefault("checklist", [])
+            has_form_response_step = False
+            for item in checklist:
+                if "Form 응답 수신" in item.get("step", "") or "주차/웰컴키트" in item.get("step", ""):
+                    item["done"] = completed_count > 0
+                    item["step"] = f"연사 사전 정보 Form 응답 수신 및 주차/웰컴키트 등록 ({completed_count}/{total_speakers}명 완료)"
+                    has_form_response_step = True
+            if not has_form_response_step:
+                checklist.insert(
+                    5,
+                    {
+                        "step": f"연사 사전 정보 Form 응답 수신 및 주차/웰컴키트 등록 ({completed_count}/{total_speakers}명 완료)",
+                        "done": completed_count > 0,
+                    },
+                )
+
+            # Upsert knowledge base entry for speaker onboarding response
+            kb_id = f"kb-onboarding-{speaker_email.split('@')[0].lower()}"
+            kb_entry = {
+                "kb_id": kb_id,
+                "title": f"[Form 응답 수신] {speaker_name} ({speaker_role}) 사전 등록 정보 확정",
+                "category": "Speaker Onboarding",
+                "content": (
+                    f"{order_label} {speaker_name} ({speaker_role}, {speaker_email}) 온보딩 폼 제출 완료 — "
+                    f"연락처: {normalized['phone']}, 티셔츠 사이즈: {normalized['tshirt_size']}, "
+                    f"차량 번호(주차 등록): {normalized['vehicle_number']}, "
+                    f"확정 핸즈온 세션: {normalized['session_title']} (수신 시각: {normalized['submitted_at']})"
+                ),
+                "source": "Google Forms / Genmunity Sync",
+                "updated_at": normalized["submitted_at"],
+            }
+            kb_list = ev.setdefault("knowledge_base", [])
+            kb_replaced = False
+            for k_idx, k_item in enumerate(kb_list):
+                if k_item.get("kb_id") == kb_id:
+                    kb_list[k_idx] = kb_entry
+                    kb_replaced = True
+                    break
+            if not kb_replaced:
+                kb_list.insert(0, kb_entry)
+            break
+
+    state["events"] = events
+    save_runtime_state(state)
+
+    record_agent_trace(
+        agent_name="OpsAgent",
+        capability="FormResponseSync",
+        summary=(
+            f"구글 폼 응답 수신 및 메인 이벤트 상태 자동 업데이트 완료: {speaker_name} ({speaker_role}) — "
+            f"티셔츠 {normalized['tshirt_size']}, 차량번호 {normalized['vehicle_number']} "
+            f"(온보딩 {completed_count}/{total_speakers} 완료)"
+        ),
+        details=normalized,
+    )
+    return {
+        "status": "synced",
+        "submission": normalized,
+        "completed_speakers": completed_count,
+        "total_speakers": total_speakers,
+    }
+
+
+def get_main_event_readiness_summary() -> Dict[str, Any]:
+    """
+    Build a unified live status snapshot of the main DevFest event, speaker pipeline stages,
+    and Google Form onboarding responses for the Web UI and ADK Agent.
+    """
+    state = load_runtime_state()
+    events = ensure_events_initialized()
+    main_ev = events[0] if events else {}
+
+    outreach_list = state.get("outreach_history", [])
+    clustered = state.get("clustered_emails") or {}
+    invites_list = state.get("calendar_invites", [])
+    submissions = state.get("form_submissions", [])
+    onboarding_map = state.get("speaker_onboarding", {})
+    latest_form = state.get("latest_form")
+
+    # Map submissions into onboarding_map if any submission exists from earlier runs
+    for sub in submissions:
+        em = (sub.get("email") or "").lower()
+        if em and em not in onboarding_map:
+            onboarding_map[em] = {
+                "speaker_name": sub.get("speaker_name"),
+                "email": sub.get("email"),
+                "onboarding_status": "completed",
+                "onboarding_label": "Form 응답 완료 (주차·웰컴키트 확정)",
+                "phone": sub.get("phone"),
+                "tshirt_size": sub.get("tshirt_size"),
+                "vehicle_number": sub.get("vehicle_number"),
+                "session_title": sub.get("session_title"),
+                "submitted_at": sub.get("submitted_at"),
+            }
+
+    speaker_cards = []
+    for sp in HARDCODED_SPEAKERS:
+        em_lower = sp["email"].lower()
+        sp_outreach = [o for o in outreach_list if (o.get("speaker_email") or "").lower() == em_lower]
+        sp_invite = [i for i in invites_list if (i.get("speaker_email") or "").lower() == em_lower]
+        sp_track = next(
+            (
+                t
+                for t in (clustered.get("speaker_tracking") or [])
+                if (t.get("email") or "").lower() == em_lower
+            ),
+            None,
+        )
+        sp_ob = onboarding_map.get(em_lower)
+
+        stage_outreach = len(sp_outreach) > 0 or bool(sp_track and sp_track.get("receipt_verified"))
+        stage_reply = bool(sp_track and sp_track.get("inbound_reply_count", 0) > 0) or bool(sp_ob)
+        stage_invited = len(sp_invite) > 0 or bool(latest_form)
+        stage_form_done = bool(sp_ob and sp_ob.get("onboarding_status") == "completed")
+
+        latest_invite = sp_invite[-1] if sp_invite else {}
+        latest_outreach = sp_outreach[-1] if sp_outreach else {}
+
+        speaker_cards.append(
+            {
+                "speaker_order": sp["speaker_order"],
+                "order_label": sp["order_label"],
+                "name": sp["name"],
+                "role": sp["role"],
+                "badge": sp.get("badge", ""),
+                "email": sp["email"],
+                "track": sp["track"],
+                "session_time": sp["session_time"],
+                "proposed_topic": sp["proposed_topic"],
+                "stages": {
+                    "outreach_sent": stage_outreach,
+                    "email_verified": stage_outreach or stage_reply,
+                    "reply_confirmed": stage_reply,
+                    "form_and_calendar_sent": stage_invited,
+                    "form_submitted": stage_form_done,
+                },
+                "onboarding_data": sp_ob,
+                "calendar_link": latest_invite.get("calendar_html_link"),
+                "form_url": latest_invite.get("form_url") or (latest_form or {}).get("primary_form_url"),
+                "latest_outreach_subject": latest_outreach.get("subject"),
+            }
+        )
+
+    completed_onboarding = sum(1 for c in speaker_cards if c["stages"]["form_submitted"])
+    # Calculate readiness percentage across the 5 pipeline stages
+    stage_flags = [
+        True,  # Step 1: Speaker Search & Matching
+        any(c["stages"]["outreach_sent"] for c in speaker_cards),
+        bool(clustered.get("total_emails_collected", 0) > 0),
+        bool(latest_form),
+        completed_onboarding > 0,
+    ]
+    readiness_pct = int((sum(1 for f in stage_flags if f) / len(stage_flags)) * 100)
+    if completed_onboarding == len(HARDCODED_SPEAKERS):
+        readiness_pct = 100
+
+    return {
+        "event": {
+            "event_id": main_ev.get("event_id", "devfest-2026-seoul"),
+            "title": main_ev.get("title", DEVFEST_EVENT_INFO["event_name"]),
+            "date": main_ev.get("date", DEVFEST_EVENT_INFO["event_date"]),
+            "venue": main_ev.get("venue", DEVFEST_EVENT_INFO["venue"]),
+            "status": main_ev.get("status", "진행 예정"),
+            "status_code": main_ev.get("status_code", "onboarding"),
+            "budget": main_ev.get("budget", "$3,000"),
+            "rsvp_count": main_ev.get("rsvp_count", 142),
+            "capacity": main_ev.get("capacity", 200),
+            "tracked_photo_attendees": main_ev.get("tracked_photo_attendees", 0),
+            "checklist": main_ev.get("checklist", []),
+        },
+        "readiness_pct": readiness_pct,
+        "completed_onboarding": completed_onboarding,
+        "total_speakers": len(HARDCODED_SPEAKERS),
+        "speaker_cards": speaker_cards,
+        "latest_form": latest_form,
+        "form_submissions": submissions,
+    }
+
