@@ -618,6 +618,7 @@ def generate_event_image_with_gemini(
         "event_title": target_ev["title"],
         "image": img_record,
         "banner_url": target_ev.get("banner_url"),
+        "event": target_ev,
     }
 
 
