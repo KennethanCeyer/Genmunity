@@ -29,6 +29,10 @@ from .event_hub import (
     sync_speaker_form_submission_to_event_state,
     get_main_event_readiness_summary,
 )
+from .collaboration_proposal import (
+    audit_collaboration_links,
+    send_speaker_collaboration_proposal_emails,
+)
 
 __all__ = [
     "GoogleWorkspaceService",
@@ -57,4 +61,7 @@ __all__ = [
     "search_all_event_knowledge",
     "sync_speaker_form_submission_to_event_state",
     "get_main_event_readiness_summary",
+    "audit_collaboration_links",
+    "send_speaker_collaboration_proposal_emails",
 ]
+

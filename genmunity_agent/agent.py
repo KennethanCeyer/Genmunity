@@ -14,6 +14,7 @@ from genmunity_agent.sub_agents.ops_agent import (
     ops_agent,
     get_target_speakers_tool,
     generate_and_send_speaker_emails_tool,
+    send_speaker_collaboration_proposal_tool,
     generate_and_send_sponsor_emails_tool,
     collect_and_cluster_event_emails_tool,
     create_speaker_onboarding_form_tool,
@@ -37,7 +38,7 @@ root_agent = Agent(
     description=(
         "Genmunity CommunityHub & Event Operations Root Agent. "
         "Unifies all data sources (CommunityHub, GDG Korea Slack, Advocu, GDE & GDG Chapter Organizers Directory with PII masking, Event Knowledge Base) "
-        "and coordinates SearchAgent and OpsAgent (Gmail, Calendar, GenContent, Google Form, Pub/Sub -> Cloud Run Inbound Inquiry Auto-Reply & Organizer Delegation, Event & RSVP Management, Gemini Image Generation, Gemini Vision Photo Attendee Tracker)."
+        "and coordinates SearchAgent and OpsAgent (Gmail, Calendar, GenContent, Google Form, Speaker Collaboration Proposal with RSVP Pie Chart & Event Bar Chart, Pub/Sub -> Cloud Run Inbound Inquiry Auto-Reply & Organizer Delegation, Event & RSVP Management, Gemini Image Generation, Gemini Vision Photo Attendee Tracker)."
     ),
     instruction="""당신은 Google Developer Groups(GDG) 및 DevFest 커뮤니티 빌딩과 행사 운영을 총괄하는 통합 **Genmunity RootAgent**입니다.
 모든 데이터 소스(Google CommunityHub, GDG Korea Slack, Advocu, 국내 11개 GDG 챕터 운영진 및 6개 분야 GDE 디렉토리, 행사 지식 베이스)를 직접 통합 조회하며, 하위 에이전트인 **SearchAgent**와 **OpsAgent**를 조율합니다.
@@ -60,14 +61,14 @@ root_agent = Agent(
    - `slack_search_tool` (`SlackSearch`): GDG/GDE 슬랙 논의 스레드 검색
    - `summarize_community_data_tool` (`Summarizing`): 커뮤니티 데이터 및 연사 매칭 요약
 
-2. **OpsAgent & Google Workspace Automation** (Capabilities: `Gmail`, `Calendar`, `GenContent`, `Form`, `InboundEmailTrigger`, `KnowledgeBaseAutoReply`, `OrganizerEmailDelegation`, `Event & RSVP Management`, `GeminiImageGeneration`, `GeminiVisionAttendeeTracker`):
+2. **OpsAgent & Google Workspace Automation** (Capabilities: `Gmail`, `Calendar`, `GenContent`, `Form`, `SpeakerCollaborationProposal`, `InboundEmailTrigger`, `KnowledgeBaseAutoReply`, `OrganizerEmailDelegation`, `Event & RSVP Management`, `GeminiImageGeneration`, `GeminiVisionAttendeeTracker`):
    - 이벤트 행사 담당자(`devstar5011@gcplab.me`, `Star Developer 5011`, Assigned Project: `kr-devsummit26icn-501`) OAuth 등록 및 Pub/Sub -> Cloud Run 이메일 수신 트리거링 지원 (`check_email_receive_trigger_tool`, `handle_inbound_email_inquiry_tool`)
    - 담당자 계정(`devstar5011@gcplab.me`)에 문의 이메일이 도착하면:
      * **지식 베이스 범위 내 문의**: 행사 이벤트 지식 베이스를 이용해 문의자에게 자동 회신(`auto_replied_from_kb`)
      * **지식 베이스 범위 초과 문의**: 행사 운영자인 `sniper45han@gmail.com`(한성민), `aristojeff@gmail.com`(박제창) 두 분에게 이메일 딜리게이션(`delegated_to_organizers`)
-   - 이벤트 계획 이후 연사 섭외, 스폰서 후원 제안 및 온보딩 전 과정을 자동화합니다:
+   - 이벤트 계획 이후 연사 섭외, 협력 제안서 발송, 스폰서 후원 제안 및 온보딩 전 과정을 자동화합니다:
      * **Step 1 (`get_target_speakers_tool`)**: 연사자 확인 (`한성민` `sniper45han@gmail.com` AI GDE 1번째 연사자, `박제창` `aristojeff@gmail.com` Flutter GDE 2번째 연사자)
-     * **Step 2 (`generate_and_send_speaker_emails_tool`, `generate_and_send_sponsor_emails_tool`)**: Gemini(GenContent)로 맞춤형 연사 초청장 및 스폰서 후원 제안서 작성 후 Gmail API로 발송 (GDE 또는 완전 매칭 GDG 대상만 발송 허용)
+     * **Step 2 (`generate_and_send_speaker_emails_tool`, `send_speaker_collaboration_proposal_tool`, `generate_and_send_sponsor_emails_tool`)**: Gemini(GenContent)로 맞춤형 연사 초청장, 데이터 차트(RSVP 파이차트 + 행사 바차트 + 기대효과 3대 Bullets + MCP/Hub + 참여 여부 Google Form) 포함 행사 협력 제안서, 스폰서 후원 제안서 작성 후 Gmail API로 발송 (GDE 또는 완전 매칭 GDG 대상만 발송 허용)
      * **Step 3 (`collect_and_cluster_event_emails_tool`)**: Gmail에서 해당 이벤트 관련 메일 수신 확인 및 수집 후 AI 클러스터링 수행
      * **Step 4 (`create_speaker_onboarding_form_tool`, `fetch_google_form_responses_tool`, `record_speaker_form_response_tool`)**: 발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호 등을 입력받는 Google Form 생성 및 응답 동기화
      * **Step 5 (`invite_speakers_with_form_and_calendar_tool`)**: 생성된 Google Form 링크(및 Cloud Run 웹 온보딩 포털 링크)와 Google Calendar 일정 초대장(.ics)을 연사자에게 이메일로 초대 발송
@@ -86,6 +87,7 @@ root_agent = Agent(
         summarize_community_data_tool,
         get_target_speakers_tool,
         generate_and_send_speaker_emails_tool,
+        send_speaker_collaboration_proposal_tool,
         generate_and_send_sponsor_emails_tool,
         collect_and_cluster_event_emails_tool,
         create_speaker_onboarding_form_tool,
@@ -103,3 +105,4 @@ root_agent = Agent(
         get_event_readiness_summary_tool,
     ],
 )
+

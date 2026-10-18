@@ -20,6 +20,7 @@ from genmunity_agent.services import (
     analyze_event_photo_and_track_attendees,
     sync_speaker_form_submission_to_event_state,
     get_main_event_readiness_summary,
+    send_speaker_collaboration_proposal_emails,
 )
 
 
@@ -495,12 +496,23 @@ def get_event_readiness_summary_tool() -> Dict[str, Any]:
     return res
 
 
+def send_speaker_collaboration_proposal_tool() -> Dict[str, Any]:
+    """
+    [GDG/GDE Speaker Event Collaboration Proposal + RSVP Pie Chart + Event Bar Chart + MCP/Hub + Google Form]
+    Audit all links, generate high-resolution RSVP Pie Chart and Event Operations Bar Chart PNGs,
+    summarize the 3 key collaboration expectation bullets, and send the Event Collaboration Proposal email
+    with the Participation Confirmation Google Form, Genmunity Hub Web URL, and Genmunity MCP Server URL
+    to the verified GDE speakers (한성민 sniper45han@gmail.com, 박제창 aristojeff@gmail.com).
+    """
+    return send_speaker_collaboration_proposal_emails()
+
+
 ops_agent = Agent(
     name="OpsAgent",
     model=GEMINI_MODEL,
     description=(
-        "이벤트 계획 이후 연사자 섭외 메일 발송(Gmail + GenContent), 스폰서 후원 제안 메일 발송(Gmail + GenContent), "
-        "행사 관련 수신 메일 수집 및 클러스터링(Gmail + GenContent), "
+        "이벤트 계획 이후 연사자 섭외 메일 발송(Gmail + GenContent), 연사 및 운영 협력 제안서(RSVP 파이차트 + 행사 바차트 + 기대효과 3대 Bullets + MCP/Hub + 참여 여부 Google Form) 발송, "
+        "스폰서 후원 제안 메일 발송(Gmail + GenContent), 행사 관련 수신 메일 수집 및 클러스터링(Gmail + GenContent), "
         "발표자 정보 입력 Form 생성(성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호), 캘린더 초대장 발송(Calendar + Gmail), "
         "Google Form 응답 수신 시 메인 이벤트 상태 동기화, "
         "담당자(devstar5011@gcplab.me / kr-devsummit26icn-501) 수신 문의의 지식 베이스 자동 회신 및 운영자(sniper45han@gmail.com, aristojeff@gmail.com) 이메일 딜리게이션, "
@@ -520,9 +532,10 @@ ops_agent = Agent(
   1. 문의 내용이 **행사 이벤트 지식 베이스(Event Knowledge Base)** 범위 내(일정, 장소, 주차/차량번호, 티셔츠, 연사자 라인업, 예산/마감일, 크레딧 등)이면 지식 베이스를 활용해 문의자에게 즉시 **자동 회신 이메일**(`auto_replied_from_kb`)을 발송합니다.
   2. 문의 내용이 **행사 이벤트 지식 베이스 범위를 넘어서면**(기업 스폰서십 계약/세금계산서, VIP 만찬, 언론 취재 승인, 법률/NDA, 환불 분쟁, 대관 연장 특례 등) 행사 운영자인 `sniper45han@gmail.com`과 `aristojeff@gmail.com` 두 분에게 **이메일 딜리게이션(이관)**(`delegated_to_organizers`)을 자동 발송합니다.
 
-[표준 운영 자동화 워크플로우 (5단계 + Form 응답 동기화)]
+[표준 운영 자동화 워크플로우 (5단계 + Form 응답 동기화 + 연사 협력 제안서)]
 - **Step 1 (`get_target_speakers_tool`)**: 대상 연사자(한성민 AI GDE, 박제창 Flutter GDE) 정보 및 세션 트랙 확인
 - **Step 2 (`generate_and_send_speaker_emails_tool`)**: Gemini(GenContent)로 맞춤형 연사 섭외 메일을 작성하고 Genmunity 이메일 디자인 시스템으로 Gmail API 발송 (`sniper45han@gmail.com`, `aristojeff@gmail.com`)
+- **Speaker Collaboration Proposal (`send_speaker_collaboration_proposal_tool`)**: 현재 RSVP 파이차트 + 행사 운영 업데이트 바차트 + 운영진 공동 협력 기대효과 3대 Bullets + Genmunity MCP/Hub 웹사이트 + 참여 여부 Google Form을 포함한 행사 협력 제안서를 링크 사전 검수 후 발송
 - **Sponsor Outreach (`generate_and_send_sponsor_emails_tool`)**: Gemini(GenContent)로 맞춤형 스폰서 후원 제안 메일(Tier 1 $1,500 / Tier 2 $3,000 / Tier 3 $5,000)을 작성하고 Gmail API로 발송
 - **Step 3 (`collect_and_cluster_event_emails_tool`)**: Gmail에서 해당 이벤트/연사 관련 메일의 수신 및 발송 내역을 수집하고 의미별로 클러스터링
 - **Step 4 (`create_speaker_onboarding_form_tool`)**: 발표자 성함, 이메일, 연락처, 티셔츠 사이즈, 차량 번호(주차 등록용), 발표 주제를 입력받는 Google Form 생성
@@ -543,6 +556,7 @@ ops_agent = Agent(
     tools=[
         get_target_speakers_tool,
         generate_and_send_speaker_emails_tool,
+        send_speaker_collaboration_proposal_tool,
         generate_and_send_sponsor_emails_tool,
         collect_and_cluster_event_emails_tool,
         create_speaker_onboarding_form_tool,
@@ -560,3 +574,4 @@ ops_agent = Agent(
         get_event_readiness_summary_tool,
     ],
 )
+
